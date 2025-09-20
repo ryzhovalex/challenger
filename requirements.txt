@@ -1,6 +1,7 @@
 colorama
 pydantic
 aiohttp[speedups]
+aiosqlite
 httpx
 aiofiles
 aiohttp_cors

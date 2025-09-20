@@ -6,6 +6,7 @@ import asyncio
 import platform
 import web
 import sys
+import database
 import byteop
 from datetime import datetime, timezone
 
@@ -28,6 +29,7 @@ import pydantic
 
 class User(pydantic.BaseModel):
     id: int
+    steam_id: int
     profile_url: str
     avatar32: str
     avatar64: str
@@ -39,7 +41,8 @@ class User(pydantic.BaseModel):
     registered_timestamp: int = 0
 
 class Achievement(pydantic.BaseModel):
-    id: str
+    id: int
+    steam_id: str
     name: str
     description: str
     icon: str
@@ -49,6 +52,7 @@ class Achievement(pydantic.BaseModel):
 
 class Game(pydantic.BaseModel):
     id: int
+    steam_id: int
     name: str
     play_time: int
     last_play_time: int
@@ -57,21 +61,19 @@ class Game(pydantic.BaseModel):
 
 
 requests_made = 0
-completion = 0.0
-games = []
-completed_achievements = 0
-total_achievements = 0
 
 
 async def init():
     local_date = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     log.info(f"{local_date}; {project_name} {build.version} ({'debug' if build.debug else 'release'} build {build.time}, {platform.system()} {platform.version()}, Python {python_version})")
+    await database.init()
     web.init(get_web_user)
 
 
 async def deinit():
     web.deinit()
+    await database.deinit()
 
 
 async def get_web_user(id: int) -> web.User:
@@ -92,12 +94,6 @@ async def run():
     return 
 
 async def update_steam():
-    global user
-    global games
-    global completion
-    global total_achievements
-    global completed_achievements
-
     completion = 0.0
     games = []
     completed_achievements = 0
@@ -108,7 +104,8 @@ async def update_steam():
 
     raw_user = (await request_steam(f"ISteamUser/GetPlayerSummaries/v0002/?key={key}&steamids={steamid}", {}))["response"]["players"][0]
     user = User(
-        id = raw_user["steamid"],
+        id = 0,
+        steam_id = raw_user["steamid"],
         username = raw_user["profileurl"].split("/")[-2],
         fullname = raw_user["personaname"],
         profile_url = raw_user["profileurl"],
@@ -142,7 +139,8 @@ async def update_steam():
         achievements = []
         for s in stat:
             achievement = Achievement(
-                id = s["apiname"],
+                id = 0,
+                steam_id = s["apiname"],
                 name = s["name"],
                 description = s["description"],
                 icon = "",  # @todo find out
@@ -155,7 +153,8 @@ async def update_steam():
                 completed_achievements += 1
 
         game = Game(
-            id = raw_game["appid"],
+            id = 0,
+            steam_id = raw_game["appid"],
             name = raw_game["name"],
             play_time = raw_game["playtime_forever"] * 60 * 1000,
             last_play_time = raw_game["rtime_last_played"] * 1000,
@@ -165,6 +164,10 @@ async def update_steam():
         games.append(game)
 
     completion = completed_achievements / total_achievements
+
+
+    async with database.transaction() as con:
+        await con.execute("INSERT INTO ")
 
 
 async def request_steam(route: str, default: Any) -> Any:

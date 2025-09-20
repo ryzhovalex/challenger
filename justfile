@@ -5,5 +5,5 @@ run:
     @ {{python}} main.py
 
 migrate *t:
-    @ dbmate --url "sqlite:///D:/users/thed4/appdata/roaming/challenger/data.db" -d "migration/revision" -s "migration" {{t}}
+    @ dbmate --url "sqlite:///C:/Users/thed4/AppData/Roaming/challenger/data.db" -d "migration/revision" -s "migration" {{t}}
 
