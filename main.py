@@ -167,7 +167,40 @@ async def update_steam():
 
 
     async with database.transaction() as con:
-        await con.execute("INSERT INTO ")
+        async with con.execute("SELECT id FROM xuser") as cur:
+            exists = await cur.fetchone() is not None
+        if exists:
+            await con.execute(
+                "UPDATE xuser SET profile_url = ?, avatar32 = ?, avatar64 = ?, avatar184 = ?, username = ?, fullname = ?, current_game_id = ?, current_game_name = ?, registered_timestamp = ? WHERE steam_id = ?",
+                (user.profile_url, user.avatar32, user.avatar64, user.avatar184, user.username, user.fullname, user.current_game_id, user.current_game_name, user.registered_timestamp, user.steam_id)
+            )
+        else:
+            await con.execute(
+                "INSERT INTO xuser (steam_id, profile_url, avatar32, avatar64, avatar184, username, fullname, current_game_id, current_game_name, registered_timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (user.steam_id, user.profile_url, user.avatar32, user.avatar64, user.avatar184, user.username, user.fullname, user.current_game_id, user.current_game_name, user.registered_timestamp)
+            )
+
+# CREATE TABLE achievement (
+#     id INTEGER PRIMARY KEY,
+#     steam_id TEXT NOT NULL,  -- steam id of achievement not necessary to be unique
+#     name TEXT NOT NULL,
+#     description TEXT NOT NULL,
+#     icon TEXT NOT NULL,
+#     completed BOOLEAN NOT NULL,
+#     unlock_timestamp INTEGER NOT NULL,
+#     game_id INTEGER,
+#     FOREIGN KEY (game_id) REFERENCES game(id) ON DELETE CASCADE
+# );
+#
+# CREATE TABLE game (
+#     id INTEGER PRIMARY KEY,
+#     steam_id INTEGER NOT NULL UNIQUE,
+#     name TEXT NOT NULL,
+#     play_time INTEGER NOT NULL,
+#     last_play_time INTEGER NOT NULL,
+#     icon TEXT NOT NULL
+# );
+        await con.executemany("INSERT INTO game ()")
 
 
 async def request_steam(route: str, default: Any) -> Any:
