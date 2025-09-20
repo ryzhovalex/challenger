@@ -488,7 +488,7 @@ def http_handler(
             status=200,
         )
         # this is probably set by aiohttp, but for the clarity let's reiterate it here
-        response.headers["content-length"] = len(response_data)
+        response.headers["content-length"] = str(len(response_data))
         response.headers.extend(endpoint.response_headers)
         context_response_headers = response_context.get({}).get("headers", {})
         response.headers.extend(context_response_headers)

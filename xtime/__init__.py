@@ -17,7 +17,8 @@ def init():
     started_ts_float = native_time.time()
 
 def timestamp() -> int:
-    return math.floor(native_time.time() * 1000)
+    # in such case it's better to be behind the time, than in front of it
+    return math.floor(native_time.time())
 
 def time() -> float:
     return native_time.time() - started_ts_float

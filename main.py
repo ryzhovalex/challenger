@@ -1,9 +1,12 @@
 project_name = "challenger"
 
 import httpx
+import datetime as dt
+import sys
 import aiofiles
 import mako
 import mako.template
+import mako.lookup
 from pathlib import Path
 import tempfile
 from typing import Any
@@ -91,14 +94,46 @@ async def get_web_user(id: int) -> web.User:
 
 @web.endpoint_module("home", response_headers={"content-type": "text/html"})
 async def endpoint_home(d: bytes) -> bytes:
-    template = mako.template.Template(filename="home.html", module_directory=Path(tempfile.gettempdir(), "mako_modules"))
-    return byteop.string_to_bytes(template.render())
+    lookup = mako.lookup.TemplateLookup(directories=["./"])
+    template = mako.template.Template(filename="home.html", module_directory=Path(tempfile.gettempdir(), "mako_modules"), lookup=lookup)
+    args = {}
+    async with database.transaction() as con:
+        async with con.execute("SELECT * FROM xuser LIMIT 1") as cur:
+            row = await cur.fetchone()
+            if row == None:
+                raise Exception("missing user")
+            args["avatar"] = row.avatar32
+            args["fullname"] = row.fullname
+        async with con.execute("SELECT completed, total, completion FROM completion ORDER BY id DESC LIMIT 1") as cur:
+            row = await cur.fetchone()
+            if row == None:
+                raise Exception("missing completion info")
+            args["completed"] = row.completed
+            args["total"] = row.total
+            args["completion"] = row.completion
+
+    return byteop.string_to_bytes(template.render(**args))
+
+def crucial_task(task):
+    try:
+        message = f"Crucial task '{task.name}' has been finished."
+        if task.cancelled():
+            message += " Cancelled."
+        elif task.exception() is not None:
+            message += f" Exception: {task.exception()}"
+        else:
+            message += f" Result: {task.result()}"
+        log.error(message)
+    finally:
+        sys.exit(1) 
 
 async def run():
+    steam_syncer_task = asyncio.create_task(steam_syncer())
+    steam_syncer_task.add_done_callback(crucial_task)
     await web.run()
     return 
 
-async def update_steam_watcher():
+async def steam_syncer():
     last_timestamp = 0
 
     async with database.connect() as con:
@@ -111,18 +146,23 @@ async def update_steam_watcher():
 
     while True:
         if last_timestamp == 0 or xtime.timestamp() - last_timestamp > cooldown:
-            await update_steam()
+            log.info(f"start planned steam sync")
+            await sync_steam()
             last_timestamp = xtime.timestamp()
-            async with database.connect() as con:
+            async with database.transaction() as con:
                 await con.execute("UPDATE sync SET last_timestamp = ?", (last_timestamp,))
-        asyncio.sleep(60)
+            print(last_timestamp + cooldown)
+            next_date = dt.datetime.fromtimestamp(last_timestamp + cooldown, dt.UTC)
+            log.info(f"planned steam sync has been finished, next one will be at {next_date}")
+        await asyncio.sleep(60)
 
-@web.endpoint_function("main", "update_steam")
-async def endpoint_update_steam(d: bytes) -> bytes:
+@web.endpoint_function("main", "sync")
+async def endpoint_sync(d: bytes) -> bytes:
+    await sync_steam()
     return byteop.string_to_bytes("ok")
 
-async def update_steam():
-    log.info("update steam")
+async def sync_steam():
+    log.info("sync steam")
     completion = 0.0
     games = []
     completed_achievements = 0
@@ -251,7 +291,7 @@ content_types = {
 }
 
 
-@web.endpoint_module_variable("share")
+@web.endpoint_module_variable("share", response_coded=False)
 async def endpoint_share(d: bytes) -> bytes:
     filename = web.request_variable()
     if "/" in filename:

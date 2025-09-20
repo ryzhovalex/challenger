@@ -1,2 +1,20 @@
 <%inherit file="base.html"/>
-<div>Hello!</div>
+<%block name="out">
+
+<div class="flex flex-row gap-4 container">
+    <div>
+        <img src="${avatar}" class="rounded">
+    </div>
+
+    <div class="flex flex-col">
+        <div>${fullname}</div>
+        <div>${completed}/${total} achievements</div>
+    </div>
+
+    <div class="">
+        ${completion}%%
+    </div>
+
+</div>
+
+</%block>
