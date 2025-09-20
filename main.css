@@ -1,0 +1,164 @@
+/*
+All our styles are described in tailwind. If we want to create custom collection of styles, we use `@apply`. Other cases are considered as legacy.
+*/
+
+@import "tailwindcss";
+
+@theme {
+  --color-primary-background: #fff;
+  --color-secondary-background: #fff;
+  --color-accent-background: #fff;
+  --color-success-background: green;
+  --color-danger-background: #fff;
+
+  --color-primary-text: #000000;
+  --color-secondary-text: #000000;
+  --color-accent-text: #ffffff;
+  --color-accent-active: oklch(70.5% 0.213 47.604);
+  --color-success-text: white;
+  --color-danger-text: white;
+  --color-accent-half: #e67d2480;
+  --color-accent-fourth: #e67d2440;
+
+  --color-tab-background: #ebebef;
+  --color-tab-background-hover: #d9d9dd;
+  --color-tab-background-active: #fafafb;
+  --color-tab-background-disabled: #bebec2;
+  --color-tab-text: black;
+}
+
+@font-face {
+  font-family: "Material Icons";
+  font-style: normal;
+  font-weight: 400;
+  src: url("material_icons.woff2") format("woff2");
+}
+
+@keyframes bounce {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    /* Height of the bounce. */
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+.anim_spin {
+  animation: spin 3s linear infinite;
+}
+
+.anim_wiggle {
+  animation: wiggle 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.7;
+  }
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  75%,
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.anim_pulse {
+  animation: pulse 2s infinite;
+}
+
+.anim_ping {
+  animation: ping 1s infinite;
+}
+
+/*
+FILTERS
+To generate use: https://isotropic.co/tool/hex-color-to-css-filter/
+*/
+.filter-white {
+  filter: invert(100%) sepia(1%) saturate(3586%) hue-rotate(168deg)
+    brightness(110%) contrast(100%);
+}
+
+/***********/
+/* HEADERS */
+/***********/
+h1 {
+  font-size: 1.5em;
+  font-weight: bold;
+  margin: 0.4em 0;
+}
+
+h2 {
+  font-size: 1.4em;
+  font-weight: bold;
+  margin: 0.4em 0;
+}
+
+h3 {
+  font-size: 1.3em;
+  font-weight: bold;
+  margin: 0.4em 0;
+}
+
+h4 {
+  font-size: 1.2em;
+  font-weight: bold;
+  margin: 0.4em 0;
+}
+
+h5 {
+  font-size: 1.1em;
+  font-weight: bold;
+  margin: 0.4em 0;
+}
+
+h6 {
+  font-size: 1em;
+  font-weight: bold;
+  margin: 0.4em 0;
+}
+
+a {
+  color: blue;
+}
+
+a:hover {
+  color: rgb(54, 54, 255);
+}
+
+.button {
+  @apply bg-accent text-accent-text border-none rounded-md py-2 px-3 text-base cursor-pointer transition-colors duration-300 ease-in-out transform hover:bg-accent-active active:scale-95  disabled:bg-gray-400 disabled:opacity-75 disabled:cursor-not-allowed;
+}

@@ -1,6 +1,11 @@
 project_name = "challenger"
 
 import httpx
+import aiofiles
+import mako
+import mako.template
+from pathlib import Path
+import tempfile
 from typing import Any
 import asyncio
 import platform
@@ -85,15 +90,39 @@ async def get_web_user(id: int) -> web.User:
     )
 
 @web.endpoint_module("home", response_headers={"content-type": "text/html"})
-async def home(d: bytes) -> bytes:
-    return byteop.string_to_bytes("<div>Hello!</div>")
+async def endpoint_home(d: bytes) -> bytes:
+    template = mako.template.Template(filename="home.html", module_directory=Path(tempfile.gettempdir(), "mako_modules"))
+    return byteop.string_to_bytes(template.render())
 
 async def run():
-    await update_steam()
     await web.run()
     return 
 
+async def update_steam_watcher():
+    last_timestamp = 0
+
+    async with database.connect() as con:
+        async with con.execute("SELECT last_timestamp FROM sync") as cur:
+            row = await cur.fetchone()
+            assert row is not None
+            last_timestamp = row[0]
+
+    cooldown = 24 * 60 * 60
+
+    while True:
+        if last_timestamp == 0 or xtime.timestamp() - last_timestamp > cooldown:
+            await update_steam()
+            last_timestamp = xtime.timestamp()
+            async with database.connect() as con:
+                await con.execute("UPDATE sync SET last_timestamp = ?", (last_timestamp,))
+        asyncio.sleep(60)
+
+@web.endpoint_function("main", "update_steam")
+async def endpoint_update_steam(d: bytes) -> bytes:
+    return byteop.string_to_bytes("ok")
+
 async def update_steam():
+    log.info("update steam")
     completion = 0.0
     games = []
     completed_achievements = 0
@@ -117,8 +146,9 @@ async def update_steam():
         # registered_timestamp = raw_user["timecreated"],
     )
 
-    r = await request_steam(f"IPlayerService/GetOwnedGames/v1/?key={key}&steamid={steamid}&include_appinfo=true&include_played_free_games=true", {})
-    games = r["response"]["games"]
+    # r = await request_steam(f"IPlayerService/GetOwnedGames/v1/?key={key}&steamid={steamid}&include_appinfo=true&include_played_free_games=true", {})
+    # games = r["response"]["games"]
+    games = []
 
     tasks = []
     stats = []
@@ -163,7 +193,8 @@ async def update_steam():
         )
         games.append(game)
 
-    completion = completed_achievements / total_achievements
+    if total_achievements > 0:
+        completion = completed_achievements / total_achievements
 
 
     async with database.transaction() as con:
@@ -200,7 +231,41 @@ async def update_steam():
 #     last_play_time INTEGER NOT NULL,
 #     icon TEXT NOT NULL
 # );
-        await con.executemany("INSERT INTO game ()")
+        # await con.executemany("INSERT INTO game ()")
+
+
+content_types = {
+    'html': 'text/html',
+    'css': 'text/css',
+    'js': 'application/javascript',
+    'json': 'application/json',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'svg': 'image/svg+xml',
+    'pdf': 'application/pdf',
+    'zip': 'application/zip',
+    'txt': 'text/plain',
+    'xml': 'application/xml',
+}
+
+
+@web.endpoint_module_variable("share")
+async def endpoint_share(d: bytes) -> bytes:
+    filename = web.request_variable()
+    if "/" in filename:
+        raise Exception("cannot change directories")
+    path = location.source(Path("share", filename))
+    extension = path.suffix.removeprefix(".")
+    async with aiofiles.open(path, "rb") as f:
+        content = await f.read()
+
+        content_type = content_types.get(extension, "application/octet-stream")
+        web.response_header("content-type", content_type)
+        web.response_header("content-disposition", f"inline; filename={filename}")
+
+        return content
 
 
 async def request_steam(route: str, default: Any) -> Any:

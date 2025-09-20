@@ -7,3 +7,4 @@ aiofiles
 aiohttp_cors
 bcrypt
 jwt
+mako

@@ -15,7 +15,7 @@ def user(p: str | Path) -> Path:
     return Path(_user, p)
 
 def source(p: str | Path) -> Path:
-    return Path(Path(__file__).parent, p)
+    return Path(Path(__file__).parent.parent, p)
 
 def init(project_name: str):
     homedir = Path.home()

@@ -85,6 +85,8 @@ class Endpoint(BaseModel):
 
     # has effect only for `http` protocol
     response_headers: dict
+    # whether code should be included in the response
+    response_coded: bool = True
 
     def get_permission() -> str:
         match type:
@@ -137,11 +139,18 @@ def request_auth_user_id() -> int | None:
 def request_auth_created() -> int | None:
     return request_context.get().get("auth_created")
 
-def request_route_variable() -> str | None:
+def request_variable() -> str | None:
     return request_context.get().get("route_parameter")("variable", None)
 
 def request_query_parameter(key: str, default: str) -> str:
     return request_context.get().get("query_parameter")(key, default)
+
+def response_header(k: str, v: str):
+    d = response_context.get({})
+    headers = d.get("headers", {})
+    headers[k] = v
+    d["headers"] = headers
+    response_context.set(d)
 
 def response_code(code: int):
     d = response_context.get({})
@@ -176,7 +185,10 @@ async def internal_ws_send(ws: engine.WebSocketResponse, endpoint: Endpoint, rem
     if not (0 <= code <= 65535):
         raise Exception(f"Handler '{endpoint.display}' produced an error code out of bounds: {code}.")
     code_bytes = c_struct.pack("<H", code)
-    final_data = code_bytes + data
+    if endpoint.response_coded:
+        final_data = code_bytes + data
+    else:
+        final_data = data
     #log.info(f"({endpoint.protocol.upper()})<<< '{request_path}', code {code}, address '{remote_addr}'")
     try:
         await ws.send_bytes(final_data)
@@ -311,8 +323,7 @@ def ws_handler(
             # 1. In response to client's message, by returning data directly from the handler. Empty returned data with OK code won't be sent.
             # 2. By obtaining request websocket `ws = server.request_websocket()`, and calling `ws.send(code, data)`.
             #
-            # These 2 usage cases cover most methods of working with websockets.
-            await ws.send_bytes(response_data)
+            # These 2 usage cases cover most methods of working with the websockets.
             await internal_ws_send(ws, endpoint, remote_addr, request_path, response_code, response_data)
 
 
@@ -464,7 +475,8 @@ def http_handler(
             return engine.Response(status=500)
 
         code_bytes = c_struct.pack("<H", response_code)
-        response_data = code_bytes + response_data
+        if endpoint.response_coded:
+            response_data = code_bytes + response_data
 
         #log.info(f"({endpoint.protocol.upper()})<<< '{request_path}', code {response_code}, address '{remote_addr}'")
 
@@ -475,7 +487,11 @@ def http_handler(
             # This way, we can utilize other error codes for special cases.
             status=200,
         )
+        # this is probably set by aiohttp, but for the clarity let's reiterate it here
+        response.headers["content-length"] = len(response_data)
         response.headers.extend(endpoint.response_headers)
+        context_response_headers = response_context.get({}).get("headers", {})
+        response.headers.extend(context_response_headers)
         return response
 
     return inner
@@ -521,13 +537,14 @@ class EndpointKwargs(BaseModel):
     auth_mode: int = mode_all
     protocol: str = "http"
     response_headers: dict = {}
+    response_coded: bool = True
 
 def endpoint_module(
     module: str,
     **kwargs,
 ):
     kw = EndpointKwargs.model_validate(kwargs)
-    endpoint = Endpoint(type="module", module=module, function="", auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers)
+    endpoint = Endpoint(type="module", module=module, function="", auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers, response_coded=kw.response_coded)
     return _endpoint(endpoint)
 
 def endpoint_module_variable(
@@ -535,27 +552,25 @@ def endpoint_module_variable(
     **kwargs,
 ):
     kw = EndpointKwargs.model_validate(kwargs)
-    endpoint = Endpoint(type="module_variable", module=module, function="@", auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers)
+    endpoint = Endpoint(type="module_variable", module=module, function="@", auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers, response_coded=kw.response_coded)
     return _endpoint(endpoint)
 
 def endpoint_function(
     module: str,
     function: str,
-    auth_mode: int,
     **kwargs,
 ):
     kw = EndpointKwargs.model_validate(kwargs)
-    endpoint = Endpoint(type="function", module=module, function=function, auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers)
+    endpoint = Endpoint(type="function", module=module, function=function, auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers, response_coded=kw.response_coded)
     return _endpoint(endpoint)
 
 def endpoint_function_variable(
     module: str,
     function: str,
-    auth_mode: int,
     **kwargs,
 ):
     kw = EndpointKwargs.model_validate(kwargs)
-    endpoint = Endpoint(type="function_variable", module=module, function=function, auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers)
+    endpoint = Endpoint(type="function_variable", module=module, function=function, auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers, response_coded=kw.response_coded)
     return _endpoint(endpoint)
 
 # @todo Also add type `root` for module-only routes `/{module}`.
@@ -802,7 +817,7 @@ def build_permission_description(permission: str) -> str:
 #
 #     return byteop.structs_to_bytes(pretty_permissions)
 
-@endpoint_function("server", "update-role-permissions", mode_permission)
+@endpoint_function("server", "update-role-permissions", auth_mode=mode_permission)
 async def update_role_permissions(data: bytes) -> bytes:
     async with transaction() as con:
         model = byteop.bytes_to_struct(UpdateRolePermissions, data)
@@ -847,7 +862,7 @@ async def bus_send(token_rule: str, code: int, data: bytes):
         final_data = code_bytes + data
         await ws.send_bytes(final_data)
 
-@endpoint_function_variable("web", "bus", mode_all, protocol="ws")
+@endpoint_function_variable("web", "bus", auth_mode=mode_all, protocol="ws")
 async def bus(data: bytes) -> bytes:
     """
     Connected via `/web/bus/@{auth_token}`.
