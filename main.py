@@ -142,19 +142,24 @@ async def steam_syncer():
             assert row is not None
             last_timestamp = row[0]
 
-    cooldown = 24 * 60 * 60
+    # cooldown = 24 * 60 * 60
+    cooldown = 15
+
+    next_date = dt.datetime.fromtimestamp(last_timestamp + cooldown, dt.UTC)
+    log.info(f"planned steam sync at {next_date}")
 
     while True:
-        if last_timestamp == 0 or xtime.timestamp() - last_timestamp > cooldown:
-            log.info(f"start planned steam sync")
-            await sync_steam()
-            last_timestamp = xtime.timestamp()
-            async with database.transaction() as con:
-                await con.execute("UPDATE sync SET last_timestamp = ?", (last_timestamp,))
-            print(last_timestamp + cooldown)
-            next_date = dt.datetime.fromtimestamp(last_timestamp + cooldown, dt.UTC)
-            log.info(f"planned steam sync has been finished, next one will be at {next_date}")
-        await asyncio.sleep(60)
+        time_diff = last_timestamp + cooldown - xtime.timestamp()
+        if time_diff > 0:
+            await asyncio.sleep(time_diff)
+
+        log.info(f"start planned steam sync")
+        await sync_steam()
+        last_timestamp = xtime.timestamp()
+        async with database.transaction() as con:
+            await con.execute("UPDATE sync SET last_timestamp = ?", (last_timestamp,))
+        next_date = dt.datetime.fromtimestamp(last_timestamp + cooldown, dt.UTC)
+        log.info(f"planned steam sync has been finished, next one will be at {next_date}")
 
 @web.endpoint_function("main", "sync")
 async def endpoint_sync(d: bytes) -> bytes:
@@ -162,7 +167,6 @@ async def endpoint_sync(d: bytes) -> bytes:
     return byteop.string_to_bytes("ok")
 
 async def sync_steam():
-    log.info("sync steam")
     completion = 0.0
     games = []
     completed_achievements = 0
@@ -323,9 +327,9 @@ async def request_steam(route: str, default: Any) -> Any:
         try:
             r = await client.get(addr + route)
             if r.status_code >= 400:
-                log.error(f"request to '{route}' resulted in response #{r.status_code}")
+                log.error(f"request to '{route}' resulted in a response #{r.status_code} with an error: {response.text}")
                 return default
-            log.info(f"got response from '{route}'")
+            # log.info(f"got response from '{route}'")
             return r.json()
         except Exception as e:
             log.error(f"request to '{route}' resulted in error: {e}")
