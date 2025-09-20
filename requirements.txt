@@ -1,2 +1,7 @@
 colorama
 pydantic
+aiohttp[speedups]
+httpx
+asyncpg
+aiofiles
+bcrypt

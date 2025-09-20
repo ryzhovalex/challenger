@@ -4,6 +4,7 @@ import httpx
 from typing import Any
 import asyncio
 import platform
+import web
 import sys
 from datetime import datetime, timezone
 
@@ -50,6 +51,14 @@ async def init():
 async def deinit():
     pass
 
+
+async def get_web_user(id: int) -> web.User:
+    return User(
+        auth="whocares",
+        username="whocares",
+        fullname="whocares",
+        permissions=[],
+    )
 
 async def run():
     key = "34525A80B57ECF3B15AEBBC170409F20"

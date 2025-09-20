@@ -71,7 +71,7 @@ mode_permission = 1
 mode_authorized = 2
 mode_all = 3
 
-Endpoint_Type = Literal["function", "variator", "function-variable"]
+Endpoint_Type = Literal["module", "module_variable", "function", "function_variable"]
 
 class Endpoint(BaseModel):
     type: Endpoint_Type
@@ -91,12 +91,25 @@ class Endpoint(BaseModel):
 
     protocol: str
 
+    def get_permission() -> str:
+        match type:
+            case "module":
+                return module
+            case "module_variable":
+                return f"{module}.@"
+            case "function":
+                return f"{module}.{function}"
+            case "function_variable":
+                return f"{module}.{function}.@"
+
     def display(self) -> str:
-        if self.type == "function":
-            return f"{self.module}.{self.function}"
-        elif self.type == "variator":
+        if self.type == "module":
+            return f"{self.module}"
+        elif self.type == "module_variable":
             return f"{self.module}.@"
-        elif self.type == "function-variable":
+        elif self.type == "function":
+            return f"{self.module}.{self.function}"
+        elif self.type == "function_variable":
             return f"{self.module}.{self.function}.@"
         else:
             raise NotImplementedError
@@ -337,42 +350,36 @@ def match_permission(permission: str, endpoint: Endpoint) -> bool:
 
     ## Permission Match Rules
     1. Permission is compared with the full request path.
-    2. Permission must be in format `{module}.{function_or_variable}[.path_variable]`.
+    2. Permission must be in format `{module}[.function_or_variable][.path_variable]`.
     3. `@` sign will represent a variable, a.k.a. route parameter. Same as for endpoint, a permission can have only one variable: either at the function place (a.k.a. "module variator") or at the function's variable placement.
-    4. Permission with the exact text `%` will be treated as super-permission, allowing everything requiring permissions. This type of permissions are usually worn by admins.
+    4. Permission with the exact text `%` will be treated as super-permission, allowing everything requiring permissions. This type of permissions are usually owned by the admins.
     5. Regarding naming, same as for endpoint, permission's module and function must be alnum, lowercase, kebab-notation, starting with a letter.
 
-    If any abovementioned requirement is not fullfilled, this matching function returns false.
+    If any of the abovementioned requirement is not fullfilled, this matching function returns false.
     """
     if permission == "%":
         return True
 
-    permission_regex = r"([a-z0-9-]+)\.([a-z0-9-@]+)(\.@)?"
-    match = re.match(permission_regex, permission)
-    if not match:
-        return False
+    # @question am i wrong commenting this? -ryzhovalex
+    #
+    # permission_regex = r"([a-z0-9-]+)\.([a-z0-9-@]+)?(\.@)?"
+    # match = re.match(permission_regex, permission)
+    # if not match:
+    #     return False
+    #
+    # g1 = match.group(1)
+    # check_endpoint_naming(g1)
+    # g2 = match.group(2) if len(match.groups()) > 2 else ""
+    # if g2 != "@":
+    #     check_endpoint_naming(g2)
+    # g3 = match.group(3) if len(match.groups()) > 3 else ""
+    # if g3 != "@":
+    #     check_endpoint_naming(g3)
+    #
+    # if g2 == "@" and g3 == "@":
+    #     raise Exception(f"incorrect permission '{permission}'")
 
-    module = match.group(1)
-    function_or_variable = match.group(2)
-    function_variable_exists = len(match.groups()) > 3
-
-    check_endpoint_naming(module)
-    if function_or_variable == "@":
-        if function_variable_exists:
-            # Invalid permission: cannot have both module variable and function variable.
-            return False
-        permission_type = "variator"
-    else:
-        check_endpoint_naming(function_or_variable)
-        if function_variable_exists:
-            permission_type = "function-variable"
-        else:
-            permission_type = "function"
-
-    if endpoint.type != permission_type or endpoint.module != module or (function_or_variable != "@" and endpoint.function != function_or_variable):
-        return False
-
-    return True
+    return permission == endpoint.get_permission()
 
 def check_endpoint_naming(name: str):
     if not re.match(r"^[a-z][a-z0-9-]+$", name):
@@ -513,33 +520,44 @@ def ext(
         }
     )
 
+class EndpointKwargs:
+    auth_mode: int = mode_all
+    protocol: str = "http"
+
+def endpoint_module(
+    module: str,
+    function: str,
+    **kwargs,
+):
+    kw = EndpointKwargs.model_validate(kwargs)
+    endpoint = Endpoint(type="module", module=module, function="", auth_mode=kw.auth_mode, protocol=kw.protocol)
+
+def endpoint_module_variable(
+    module: str,
+    **kwargs,
+):
+    kw = EndpointKwargs.model_validate(kwargs)
+    endpoint = Endpoint(type="module_variable", module=module, function="@", auth_mode=kw.auth_mode, protocol=kw.protocol)
+    return _endpoint(endpoint)
+
 def endpoint_function(
     module: str,
     function: str,
     auth_mode: int,
-    *,
-    protocol: str = "http",
+    **kwargs,
 ):
-    endpoint = Endpoint(type="function", module=module, function=function, auth_mode=auth_mode, protocol=protocol)
-    return _endpoint(endpoint)
-
-def endpoint_variator(
-    module: str,
-    auth_mode: int,
-    *,
-    protocol: str = "http",
-):
-    endpoint = Endpoint(type="variator", module=module, function="@", auth_mode=auth_mode, protocol=protocol)
+    kw = EndpointKwargs.model_validate(kwargs)
+    endpoint = Endpoint(type="function", module=module, function=function, auth_mode=kw.auth_mode, protocol=kw.protocol)
     return _endpoint(endpoint)
 
 def endpoint_function_variable(
     module: str,
     function: str,
     auth_mode: int,
-    *,
-    protocol: str = "http",
+    **kwargs,
 ):
-    endpoint = Endpoint(type="function-variable", module=module, function=function, auth_mode=auth_mode, protocol=protocol)
+    kw = EndpointKwargs.model_validate(kwargs)
+    endpoint = Endpoint(type="function_variable", module=module, function=function, auth_mode=kw.auth_mode, protocol=kw.protocol)
     return _endpoint(endpoint)
 
 # @todo Also add type `root` for module-only routes `/{module}`.
@@ -551,11 +569,13 @@ def _endpoint(endpoint: Endpoint):
             return await handler(*args, **kwargs)
 
         # Variables in route is always prefixed with `@` - to avoid confusion between module variators and functions.
-        if endpoint.type == "function":
-            route = f"/{endpoint.module}/{endpoint.function}"
-        elif endpoint.type == "variator":
+        if endpoint.type == "module":
+            route = f"/{endpoint.module}"
+        elif endpoint.type == "module_variable":
             route = f"/{endpoint.module}/" + "@{variable}"
-        elif endpoint.type == "function-variable":
+        elif endpoint.type == "function":
+            route = f"/{endpoint.module}/{endpoint.function}"
+        elif endpoint.type == "function_variable":
             route = f"/{endpoint.module}/{endpoint.function}/" + "@{variable}"
         else:
             raise Exception("Not implemented.")
@@ -579,6 +599,8 @@ def _endpoint(endpoint: Endpoint):
 class User(BaseModel):
     permissions: list[str]
     auth: str
+    username: str
+    fullname: str
 
 get_user: Callable[[int], Awaitable[User | None]]
 
