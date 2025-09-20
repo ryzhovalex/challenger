@@ -46,10 +46,11 @@ async def init():
     local_date = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     log.info(f"{local_date}; {project_name} {build.version} ({'debug' if build.debug else 'release'} build {build.time}, {platform.system()} {platform.version()}, Python {python_version})")
+    web.init(get_web_user)
 
 
 async def deinit():
-    pass
+    web.deinit()
 
 
 async def get_web_user(id: int) -> web.User:
@@ -61,6 +62,10 @@ async def get_web_user(id: int) -> web.User:
     )
 
 async def run():
+    await web.run()
+    return 
+
+
     key = "34525A80B57ECF3B15AEBBC170409F20"
     steamid = "76561198016051984"
 

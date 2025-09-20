@@ -2,6 +2,7 @@ colorama
 pydantic
 aiohttp[speedups]
 httpx
-asyncpg
 aiofiles
+aiohttp_cors
 bcrypt
+jwt

@@ -45,19 +45,11 @@ import jwt
 from pydantic import BaseModel, ValidationError
 
 import byteop
-from codes import ROLE_NOT_FOUND, STRUCT_VALIDATION_ERROR, UNKNOWN_UPDATE_ACTION
+from code import role_not_found, struct_validation_error, unknown_update_action
 import config
-from postgres import transaction
 import xrandom
 import xtime
 import log
-
-# from utils import makeid, error
-# from byteop import structs_to_bytes, bytes_to_struct
-# from codes import CONNECTION_ERROR, EMPTY_COLLECTION, ERROR, OK, PERMISSION_NOT_FOUND, ROLE_NOT_FOUND, STRUCT_VALIDATION_ERROR, UNKNOWN_UPDATE_ACTION
-# from orm import Table, CharField, TextField, BooleanField, transaction
-# import postgres, utils
-# from utils import ENCODING, INDENTATION, Result, T_Model, config_get, debug, info, err, panic, Struct, timestamp, timestamp_float, log_context
 
 indentation = " " * 4
 encoding = "utf-8"
@@ -520,7 +512,7 @@ def ext(
         }
     )
 
-class EndpointKwargs:
+class EndpointKwargs(BaseModel):
     auth_mode: int = mode_all
     protocol: str = "http"
 
@@ -777,43 +769,44 @@ def build_permission_description(permission: str) -> str:
     description.removesuffix("\n")
     return description
 
-@endpoint_function("web", "get_permissions", mode_authorized)
-async def get_permissions(data: bytes) -> bytes:
-    class R(BaseModel):
-        codes: list[str] | None = None
-
-    model = byteop.bytes_to_struct(R, data)
-    if model is None:
-        response_code(STRUCT_VALIDATION_ERROR)
-        return bytes()
-    codes = model.codes
-    used_permissions: list[str] = []
-    pretty_permissions: list[PrettyPermission] = []
-    async with transaction() as con:
-        # @perf Search using LIKE filter.
-        roles = await con.fetch("SELECT * FROM role")
-        for role in roles:
-            for permission in role.permissions.split(","):
-                if (codes is None or permission in codes) and (permission not in used_permissions):
-                    used_permissions.append(permission)
-                    pretty_permissions.append(PrettyPermission(
-                        route=permission,
-                        description=build_permission_description(permission),
-                    ))
-
-    return byteop.structs_to_bytes(pretty_permissions)
+# @todo this should be included externally upon init like with `get_user`
+# @endpoint_function("web", "get_permissions", mode_authorized)
+# async def get_permissions(data: bytes) -> bytes:
+#     class R(BaseModel):
+#         codes: list[str] | None = None
+#
+#     model = byteop.bytes_to_struct(R, data)
+#     if model is None:
+#         response_code(struct_validation_error)
+#         return bytes()
+#     codes = model.codes
+#     used_permissions: list[str] = []
+#     pretty_permissions: list[PrettyPermission] = []
+#     async with transaction() as con:
+#         # @perf Search using LIKE filter.
+#         roles = await con.fetch("SELECT * FROM role")
+#         for role in roles:
+#             for permission in role.permissions.split(","):
+#                 if (codes is None or permission in codes) and (permission not in used_permissions):
+#                     used_permissions.append(permission)
+#                     pretty_permissions.append(PrettyPermission(
+#                         route=permission,
+#                         description=build_permission_description(permission),
+#                     ))
+#
+#     return byteop.structs_to_bytes(pretty_permissions)
 
 @endpoint_function("server", "update-role-permissions", mode_permission)
 async def update_role_permissions(data: bytes) -> bytes:
     async with transaction() as con:
         model = byteop.bytes_to_struct(UpdateRolePermissions, data)
         if not model:
-            response_code(STRUCT_VALIDATION_ERROR)
+            response_code(struct_validation_error)
             return bytes()
 
         role = await con.fetch_first("SELECT * FROM role WHERE id = $1", model.id)
         if role is None:
-            response_code(ROLE_NOT_FOUND)
+            response_code(role_not_found)
             return bytes()
 
         permissions = set(role.permissions.split(","))
@@ -823,7 +816,7 @@ async def update_role_permissions(data: bytes) -> bytes:
         elif model.action == "pop":
             permissions.difference_update(model.permissions)
         else:
-            response_code(UNKNOWN_UPDATE_ACTION)
+            response_code(unknown_update_action)
             return bytes()
 
         new_permissions = ",".join(permissions)
