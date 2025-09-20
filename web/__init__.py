@@ -83,6 +83,8 @@ class Endpoint(BaseModel):
 
     protocol: str
 
+    response_headers: dict
+
     def get_permission() -> str:
         match type:
             case "module":
@@ -515,6 +517,7 @@ def ext(
 class EndpointKwargs(BaseModel):
     auth_mode: int = mode_all
     protocol: str = "http"
+    response_headers: dict = {}
 
 def endpoint_module(
     module: str,
@@ -522,14 +525,14 @@ def endpoint_module(
     **kwargs,
 ):
     kw = EndpointKwargs.model_validate(kwargs)
-    endpoint = Endpoint(type="module", module=module, function="", auth_mode=kw.auth_mode, protocol=kw.protocol)
+    endpoint = Endpoint(type="module", module=module, function="", auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers)
 
 def endpoint_module_variable(
     module: str,
     **kwargs,
 ):
     kw = EndpointKwargs.model_validate(kwargs)
-    endpoint = Endpoint(type="module_variable", module=module, function="@", auth_mode=kw.auth_mode, protocol=kw.protocol)
+    endpoint = Endpoint(type="module_variable", module=module, function="@", auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers)
     return _endpoint(endpoint)
 
 def endpoint_function(
@@ -539,7 +542,7 @@ def endpoint_function(
     **kwargs,
 ):
     kw = EndpointKwargs.model_validate(kwargs)
-    endpoint = Endpoint(type="function", module=module, function=function, auth_mode=kw.auth_mode, protocol=kw.protocol)
+    endpoint = Endpoint(type="function", module=module, function=function, auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers)
     return _endpoint(endpoint)
 
 def endpoint_function_variable(
@@ -549,7 +552,7 @@ def endpoint_function_variable(
     **kwargs,
 ):
     kw = EndpointKwargs.model_validate(kwargs)
-    endpoint = Endpoint(type="function_variable", module=module, function=function, auth_mode=kw.auth_mode, protocol=kw.protocol)
+    endpoint = Endpoint(type="function_variable", module=module, function=function, auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers)
     return _endpoint(endpoint)
 
 # @todo Also add type `root` for module-only routes `/{module}`.
