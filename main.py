@@ -6,6 +6,7 @@ import asyncio
 import platform
 import web
 import sys
+import byteop
 from datetime import datetime, timezone
 
 import location
@@ -60,6 +61,10 @@ async def get_web_user(id: int) -> web.User:
         fullname="whocares",
         permissions=[],
     )
+
+@web.endpoint_module("home", response_headers={"content-type": "text/html"})
+async def home(d: bytes) -> bytes:
+    return byteop.string_to_bytes("<div>Hello!</div>")
 
 async def run():
     await web.run()

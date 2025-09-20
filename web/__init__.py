@@ -83,6 +83,7 @@ class Endpoint(BaseModel):
 
     protocol: str
 
+    # has effect only for `http` protocol
     response_headers: dict
 
     def get_permission() -> str:
@@ -315,9 +316,9 @@ def ws_handler(
             await internal_ws_send(ws, endpoint, remote_addr, request_path, response_code, response_data)
 
 
-        #--------------------------------------------
-        # Disconnect Routine
-        #--------------------------------------------
+        ######################
+        # Disconnect Routine #
+        ######################
         try:
             response_data = await handler(disconnect_token)
         except Exception as e:
@@ -467,13 +468,15 @@ def http_handler(
 
         #log.info(f"({endpoint.protocol.upper()})<<< '{request_path}', code {response_code}, address '{remote_addr}'")
 
-        return engine.Response(
+        response = engine.Response(
             body=response_data,
             # If the message is processed, we always consider this is OK HTTP
             # status, despite having positive error code in the response.
             # This way, we can utilize other error codes for special cases.
             status=200,
         )
+        response.headers.extend(endpoint.response_headers)
+        return response
 
     return inner
 
@@ -521,11 +524,11 @@ class EndpointKwargs(BaseModel):
 
 def endpoint_module(
     module: str,
-    function: str,
     **kwargs,
 ):
     kw = EndpointKwargs.model_validate(kwargs)
     endpoint = Endpoint(type="module", module=module, function="", auth_mode=kw.auth_mode, protocol=kw.protocol, response_headers=kw.response_headers)
+    return _endpoint(endpoint)
 
 def endpoint_module_variable(
     module: str,
