@@ -26,11 +26,23 @@ import build
 import pydantic
 
 
-requests_made = 0
-
+class User(pydantic.BaseModel):
+    id: int
+    profile_url: str
+    avatar32: str
+    avatar64: str
+    avatar184: str
+    username: str
+    fullname: str
+    current_game_id: int = 0
+    current_game_name: str = ""
+    registered_timestamp: int = 0
 
 class Achievement(pydantic.BaseModel):
     id: str
+    name: str
+    description: str
+    icon: str
     completed: bool
     unlock_timestamp: int
 
@@ -41,6 +53,14 @@ class Game(pydantic.BaseModel):
     play_time: int
     last_play_time: int
     achievements: list[Achievement]
+    icon: str
+
+
+requests_made = 0
+completion = 0.0
+games = []
+completed_achievements = 0
+total_achievements = 0
 
 
 async def init():
@@ -67,12 +87,38 @@ async def home(d: bytes) -> bytes:
     return byteop.string_to_bytes("<div>Hello!</div>")
 
 async def run():
+    await update_steam()
     await web.run()
     return 
 
+async def update_steam():
+    global user
+    global games
+    global completion
+    global total_achievements
+    global completed_achievements
+
+    completion = 0.0
+    games = []
+    completed_achievements = 0
+    total_achievements = 0
 
     key = "34525A80B57ECF3B15AEBBC170409F20"
     steamid = "76561198016051984"
+
+    raw_user = (await request_steam(f"ISteamUser/GetPlayerSummaries/v0002/?key={key}&steamids={steamid}", {}))["response"]["players"][0]
+    user = User(
+        id = raw_user["steamid"],
+        username = raw_user["profileurl"].split("/")[-2],
+        fullname = raw_user["personaname"],
+        profile_url = raw_user["profileurl"],
+        avatar32 = raw_user["avatar"],
+        avatar64 = raw_user["avatarmedium"],
+        avatar184 = raw_user["avatarfull"],
+        # current_game_id = raw_user["gameid"],
+        # current_game_name = raw_user["gameextrainfo"],
+        # registered_timestamp = raw_user["timecreated"],
+    )
 
     r = await request_steam(f"IPlayerService/GetOwnedGames/v1/?key={key}&steamid={steamid}&include_appinfo=true&include_played_free_games=true", {})
     games = r["response"]["games"]
@@ -81,7 +127,7 @@ async def run():
     stats = []
     for game in games:
         # stat = await request_steam(f"ISteamUserStats/GetUserStatsForGame/v0002/?key={key}&steamid={steamid}&appid={game['appid']}", {})
-        stat = await request_steam(f"ISteamUserStats/GetPlayerAchievements/v0001/?key={key}&steamid={steamid}&appid={game['appid']}", {})
+        stat = await request_steam(f"ISteamUserStats/GetPlayerAchievements/v0001/?key={key}&steamid={steamid}&appid={game['appid']}&l=en", {})
         if stat == {}:
             stats.append([])
         else:
@@ -92,17 +138,14 @@ async def run():
     #     stat = await request_steam(f"ISteamUserStats/GetGlobalAchievementPercentagesForApp/v0002/?key={key}&steamid={steamid}&gameid={game['appid']}", {})
     #     global_stats.append(stat)
 
-
-    print("\n\nEND REQUESTS\n\n", end="")
-
-    completed_achievements = 0
-    total_achievements = 0
-
     for raw_game, stat in zip(games, stats):
         achievements = []
         for s in stat:
             achievement = Achievement(
                 id = s["apiname"],
+                name = s["name"],
+                description = s["description"],
+                icon = "",  # @todo find out
                 completed = s["achieved"],
                 unlock_timestamp = s["unlocktime"],
             )
@@ -117,11 +160,11 @@ async def run():
             play_time = raw_game["playtime_forever"] * 60 * 1000,
             last_play_time = raw_game["rtime_last_played"] * 1000,
             achievements = achievements,
+            icon = raw_game["img_icon_url"],
         )
-        # print(game, stat, global_stat, sep="\n---\n", end="\n\n--------------------------------------------------------------------------------\n\n")
+        games.append(game)
 
     completion = completed_achievements / total_achievements
-    print(f"collected {total_achievements} achievements, completed {completed_achievements}, completion: {completion * 100:.1f}%")
 
 
 async def request_steam(route: str, default: Any) -> Any:
