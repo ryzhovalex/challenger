@@ -5,6 +5,12 @@
     <div class="container mx-auto my-auto py-16 bg-secondary-background rounded-lg shadow-lg">
         <div class="flex flex-row gap-4 justify-center items-center font-bold">
 
+            
+            <div class="absolute top-0 right-0 mt-8 mr-8 flex flex-col">
+                <button class="button" hx-post="main/sync" hx-trigger="click" hx-target="#sync-result" hx-swap="outerHTML">Sync</button>
+                <div id="sync-result"></div>
+            </div>
+
             <div>
                 <img src="${avatar}" class="rounded">
             </div>
