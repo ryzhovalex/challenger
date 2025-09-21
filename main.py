@@ -169,9 +169,8 @@ async def steam_syncer():
 
 @web.endpoint_function("main", "sync")
 async def endpoint_sync(d: bytes) -> bytes:
-    await asyncio.sleep(10)
-    # async with database.transaction() as con:
-    #     await sync_steam(con)
+    async with database.transaction() as con:
+        await sync_steam(con)
     web.as_html()
     return byteop.string_to_bytes("ok")
 

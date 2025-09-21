@@ -1,0 +1,13 @@
+[Unit]
+Description=Challenger
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/alex/app/challenger/.venv/bin/python main.py -host 0.0.0.0 -port 7800
+WorkingDirectory=/home/alex/app/challenger
+Restart=always
+User=alex
+
+[Install]
+WantedBy=multi-user.target
