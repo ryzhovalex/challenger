@@ -68,6 +68,9 @@ class Game(pydantic.BaseModel):
     icon: str
 
 
+sync_in_progress = False
+
+
 async def init():
     local_date = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
@@ -166,8 +169,9 @@ async def steam_syncer():
 
 @web.endpoint_function("main", "sync")
 async def endpoint_sync(d: bytes) -> bytes:
-    async with database.transaction() as con:
-        await sync_steam(con)
+    await asyncio.sleep(10)
+    # async with database.transaction() as con:
+    #     await sync_steam(con)
     web.as_html()
     return byteop.string_to_bytes("ok")
 

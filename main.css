@@ -163,3 +163,13 @@ a:hover {
 .button {
   @apply bg-accent-background text-accent-text border-none rounded-md py-2 px-3 text-base cursor-pointer transition-colors duration-300 ease-in-out transform hover:bg-accent-active active:scale-95  disabled:bg-gray-400 disabled:opacity-75 disabled:cursor-not-allowed;
 }
+
+.htmx-indicator {
+    display:none;
+}
+.htmx-request .htmx-indicator {
+    display:inline;
+}
+.htmx-request.htmx-indicator {
+    display:inline;
+}
