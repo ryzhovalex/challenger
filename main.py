@@ -64,7 +64,7 @@ class Game(pydantic.BaseModel):
     name: str
     play_time: int
     last_play_time: int
-    achievements: list[Achievement]
+    achievement_ids: list[int]
     icon: str
 
 
@@ -92,7 +92,7 @@ async def get_web_user(id: int) -> web.User:
         permissions=[],
     )
 
-@web.endpoint_module("home", response_headers={"content-type": "text/html"})
+@web.endpoint_module("home")
 async def endpoint_home(d: bytes) -> bytes:
     lookup = mako.lookup.TemplateLookup(directories=["./"])
     template = mako.template.Template(filename="home.html", module_directory=Path(tempfile.gettempdir(), "mako_modules"), lookup=lookup)
@@ -112,6 +112,7 @@ async def endpoint_home(d: bytes) -> bytes:
             args["total"] = row.total
             args["completion"] = row.completion
 
+    web.as_html()
     return byteop.string_to_bytes(template.render(**args))
 
 def crucial_task(task):
@@ -136,14 +137,13 @@ async def run():
 async def steam_syncer():
     last_timestamp = 0
 
-    async with database.connect() as con:
+    async with database.transaction() as con:
         async with con.execute("SELECT last_timestamp FROM sync") as cur:
             row = await cur.fetchone()
             assert row is not None
             last_timestamp = row[0]
 
-    # cooldown = 24 * 60 * 60
-    cooldown = 15
+    cooldown = 24 * 60 * 60
 
     next_date = dt.datetime.fromtimestamp(last_timestamp + cooldown, dt.UTC)
     log.info(f"planned steam sync at {next_date}")
@@ -154,7 +154,8 @@ async def steam_syncer():
             await asyncio.sleep(time_diff)
 
         log.info(f"start planned steam sync")
-        await sync_steam()
+        async with database.transaction() as con:
+            await sync_steam(con)
         last_timestamp = xtime.timestamp()
         async with database.transaction() as con:
             await con.execute("UPDATE sync SET last_timestamp = ?", (last_timestamp,))
@@ -163,10 +164,12 @@ async def steam_syncer():
 
 @web.endpoint_function("main", "sync")
 async def endpoint_sync(d: bytes) -> bytes:
-    await sync_steam()
+    async with database.transaction() as con:
+        await sync_steam(con)
+    web.as_html()
     return byteop.string_to_bytes("ok")
 
-async def sync_steam():
+async def sync_steam(con: database.Connection):
     completion = 0.0
     games = []
     completed_achievements = 0
@@ -189,28 +192,52 @@ async def sync_steam():
         # current_game_name = raw_user["gameextrainfo"],
         # registered_timestamp = raw_user["timecreated"],
     )
+    async with con.execute("SELECT id FROM xuser") as cur:
+        exists = await cur.fetchone() is not None
+    if exists:
+        await con.execute(
+            "UPDATE xuser SET profile_url = ?, avatar32 = ?, avatar64 = ?, avatar184 = ?, username = ?, fullname = ?, current_game_id = ?, current_game_name = ?, registered_timestamp = ? WHERE steam_id = ?",
+            (user.profile_url, user.avatar32, user.avatar64, user.avatar184, user.username, user.fullname, user.current_game_id, user.current_game_name, user.registered_timestamp, user.steam_id)
+        )
+    else:
+        await con.execute(
+            "INSERT INTO xuser (steam_id, profile_url, avatar32, avatar64, avatar184, username, fullname, current_game_id, current_game_name, registered_timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user.steam_id, user.profile_url, user.avatar32, user.avatar64, user.avatar184, user.username, user.fullname, user.current_game_id, user.current_game_name, user.registered_timestamp)
+        )
 
-    # r = await request_steam(f"IPlayerService/GetOwnedGames/v1/?key={key}&steamid={steamid}&include_appinfo=true&include_played_free_games=true", {})
-    # games = r["response"]["games"]
-    games = []
+    r = await request_steam(f"IPlayerService/GetOwnedGames/v1/?key={key}&steamid={steamid}&include_appinfo=true&include_played_free_games=true", {})
+    games = r["response"]["games"]
 
-    tasks = []
-    stats = []
-    for game in games:
-        # stat = await request_steam(f"ISteamUserStats/GetUserStatsForGame/v0002/?key={key}&steamid={steamid}&appid={game['appid']}", {})
-        stat = await request_steam(f"ISteamUserStats/GetPlayerAchievements/v0001/?key={key}&steamid={steamid}&appid={game['appid']}&l=en", {})
-        if stat == {}:
-            stats.append([])
+    for raw_game in games:
+
+        game = Game(
+            id = 0,
+            steam_id = raw_game["appid"],
+            name = raw_game["name"],
+            play_time = raw_game["playtime_forever"] * 60 * 1000,
+            last_play_time = raw_game["rtime_last_played"] * 1000,
+            achievement_ids = [],
+            icon = raw_game["img_icon_url"],
+        )
+
+        async with con.execute("SELECT id FROM game WHERE steam_id = ?", (game.steam_id,)) as cur:
+            exists = await cur.fetchone() is not None
+        if exists:
+            await con.execute(
+                "UPDATE game SET name = ?, play_time = ?, last_play_time = ?, icon = ? WHERE steam_id = ?",
+                (game.name, game.play_time, game.last_play_time, game.icon, game.steam_id),
+            )
         else:
-            stats.append(stat["playerstats"].get("achievements", []))
+            await con.execute(
+                "INSERT INTO game (steam_id, name, play_time, last_play_time, icon) VALUES (?, ?, ?, ?, ?)",
+                (game.steam_id, game.name, game.play_time, game.last_play_time, game.icon),
+            )
 
-    # global_stats = []
-    # for game in games:
-    #     stat = await request_steam(f"ISteamUserStats/GetGlobalAchievementPercentagesForApp/v0002/?key={key}&steamid={steamid}&gameid={game['appid']}", {})
-    #     global_stats.append(stat)
-
-    for raw_game, stat in zip(games, stats):
-        achievements = []
+        # stat = await request_steam(f"ISteamUserStats/GetUserStatsForGame/v0002/?key={key}&steamid={steamid}&appid={game['appid']}", {})
+        raw_stat = await request_steam(f"ISteamUserStats/GetPlayerAchievements/v0001/?key={key}&steamid={steamid}&appid={game.steam_id}&l=en", {})
+        stat = []
+        if raw_stat != {}:
+            stat = raw_stat["playerstats"].get("achievements", [])
         for s in stat:
             achievement = Achievement(
                 id = 0,
@@ -221,61 +248,34 @@ async def sync_steam():
                 completed = s["achieved"],
                 unlock_timestamp = s["unlocktime"],
             )
-            achievements.append(achievement)
+
+            async with con.execute("SELECT achievement.id FROM achievement JOIN game ON game.id = achievement.game_id WHERE achievement.steam_id = ? AND game.steam_id = ?", (achievement.steam_id, game.steam_id)) as cur:
+                exists = await cur.fetchone() is not None
+            if exists:
+                await con.execute(
+                    "UPDATE achievement SET name = ?, description = ?, icon = ?, completed = ?, unlock_timestamp = ?, game_id = (SELECT id FROM game WHERE steam_id = ?) WHERE steam_id = ?",
+                    (achievement.name, achievement.description, achievement.icon, achievement.completed, achievement.unlock_timestamp, game.steam_id, achievement.steam_id)
+                )
+            else:
+                await con.execute(
+                    "INSERT INTO achievement (steam_id, name, description, icon, completed, unlock_timestamp, game_id) VALUES (?, ?, ?, ?, ?, ?, (SELECT id FROM game WHERE steam_id = ?))",
+                    (achievement.steam_id, achievement.name, achievement.description, achievement.icon, achievement.completed, achievement.unlock_timestamp, game.steam_id)
+                )
+
             total_achievements += 1
             if achievement.completed:
                 completed_achievements += 1
 
-        game = Game(
-            id = 0,
-            steam_id = raw_game["appid"],
-            name = raw_game["name"],
-            play_time = raw_game["playtime_forever"] * 60 * 1000,
-            last_play_time = raw_game["rtime_last_played"] * 1000,
-            achievements = achievements,
-            icon = raw_game["img_icon_url"],
-        )
-        games.append(game)
+    # global_stats = []
+    # for game in games:
+    #     stat = await request_steam(f"ISteamUserStats/GetGlobalAchievementPercentagesForApp/v0002/?key={key}&steamid={steamid}&gameid={game['appid']}", {})
+    #     global_stats.append(stat)
 
     if total_achievements > 0:
         completion = completed_achievements / total_achievements
 
-
-    async with database.transaction() as con:
-        async with con.execute("SELECT id FROM xuser") as cur:
-            exists = await cur.fetchone() is not None
-        if exists:
-            await con.execute(
-                "UPDATE xuser SET profile_url = ?, avatar32 = ?, avatar64 = ?, avatar184 = ?, username = ?, fullname = ?, current_game_id = ?, current_game_name = ?, registered_timestamp = ? WHERE steam_id = ?",
-                (user.profile_url, user.avatar32, user.avatar64, user.avatar184, user.username, user.fullname, user.current_game_id, user.current_game_name, user.registered_timestamp, user.steam_id)
-            )
-        else:
-            await con.execute(
-                "INSERT INTO xuser (steam_id, profile_url, avatar32, avatar64, avatar184, username, fullname, current_game_id, current_game_name, registered_timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (user.steam_id, user.profile_url, user.avatar32, user.avatar64, user.avatar184, user.username, user.fullname, user.current_game_id, user.current_game_name, user.registered_timestamp)
-            )
-
-# CREATE TABLE achievement (
-#     id INTEGER PRIMARY KEY,
-#     steam_id TEXT NOT NULL,  -- steam id of achievement not necessary to be unique
-#     name TEXT NOT NULL,
-#     description TEXT NOT NULL,
-#     icon TEXT NOT NULL,
-#     completed BOOLEAN NOT NULL,
-#     unlock_timestamp INTEGER NOT NULL,
-#     game_id INTEGER,
-#     FOREIGN KEY (game_id) REFERENCES game(id) ON DELETE CASCADE
-# );
-#
-# CREATE TABLE game (
-#     id INTEGER PRIMARY KEY,
-#     steam_id INTEGER NOT NULL UNIQUE,
-#     name TEXT NOT NULL,
-#     play_time INTEGER NOT NULL,
-#     last_play_time INTEGER NOT NULL,
-#     icon TEXT NOT NULL
-# );
-        # await con.executemany("INSERT INTO game ()")
+    # completions are accumulated to form a story
+    await con.execute("INSERT INTO completion (id, completion, completed, total) VALUES (?, ?, ?, ?)", (xtime.timestamp(), completion, completed_achievements, total_achievements))
 
 
 content_types = {
@@ -319,7 +319,6 @@ async def request_steam(route: str, default: Any) -> Any:
 
     addr = "https://api.steampowered.com/"
 
-    log.info(f"request '{route}'")
     requests_made += 1
 
     async with httpx.AsyncClient() as client:
@@ -327,7 +326,7 @@ async def request_steam(route: str, default: Any) -> Any:
         try:
             r = await client.get(addr + route)
             if r.status_code >= 400:
-                log.error(f"request to '{route}' resulted in a response #{r.status_code} with an error: {response.text}")
+                log.error(f"request to '{route}' resulted in a response #{r.status_code} with an error: {r.text}")
                 return default
             # log.info(f"got response from '{route}'")
             return r.json()

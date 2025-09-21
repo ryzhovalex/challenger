@@ -2,7 +2,7 @@
 Web-server framework.
 
 Mantra:
-1. Why bother about HTTP methods, codes and data type headers?
+1. Why bother about HTTP methods, status codes and data type headers?
 2. Standardize how endpoints should look like. No more REST mess.
 3. Every endpoint accept bytes, and return bytes. User must know how to interpret bytes coming for the requested endpoint, without any additional HTTP payload.
 4. Integrate Role-Based Access Control.
@@ -156,6 +156,12 @@ def response_code(code: int):
     d = response_context.get({})
     d["code"] = code
     response_context.set(d)
+
+def as_text():
+    response_header("content-type", "text/plain")
+
+def as_html():
+    response_header("content-type", "text/html")
 
 class Websocket:
     def __init__(self, native: engine.WebSocketResponse, endpoint: Endpoint, remote_addr: str, request_path: str) -> None:
