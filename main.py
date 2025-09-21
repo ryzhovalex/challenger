@@ -102,7 +102,7 @@ async def endpoint_home(d: bytes) -> bytes:
             row = await cur.fetchone()
             if row == None:
                 raise Exception("missing user")
-            args["avatar"] = row.avatar32
+            args["avatar"] = row.avatar64
             args["fullname"] = row.fullname
         async with con.execute("SELECT completed, total, completion FROM completion ORDER BY id DESC LIMIT 1") as cur:
             row = await cur.fetchone()
@@ -111,6 +111,11 @@ async def endpoint_home(d: bytes) -> bytes:
             args["completed"] = row.completed
             args["total"] = row.total
             args["completion"] = row.completion
+        async with con.execute("SELECT last_timestamp FROM sync LIMIT 1") as cur:
+            row = await cur.fetchone()
+            if row == None:
+                raise Exception("missing sync data")
+            args["last_update_date"] = dt.datetime.fromtimestamp(row.last_timestamp, dt.UTC)
 
     web.as_html()
     return byteop.string_to_bytes(template.render(**args))
@@ -275,7 +280,14 @@ async def sync_steam(con: database.Connection):
         completion = completed_achievements / total_achievements
 
     # completions are accumulated to form a story
-    await con.execute("INSERT INTO completion (id, completion, completed, total) VALUES (?, ?, ?, ?)", (xtime.timestamp(), completion, completed_achievements, total_achievements))
+    skip_story = False
+    async with con.execute("SELECT * FROM completion ORDER BY id DESC LIMIT 1") as cur:
+        row = await cur.fetchone()
+        if row is not None and row.completion == completion and row.completed == completed_achievements and row.total == total_achievements:
+            log.info("skip completion story add: nothing changed")
+            skip_story = True
+    if not skip_story:
+        await con.execute("INSERT INTO completion (id, completion, completed, total) VALUES (?, ?, ?, ?)", (xtime.timestamp(), completion, completed_achievements, total_achievements))
 
 
 content_types = {

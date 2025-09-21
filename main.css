@@ -5,27 +5,28 @@ All our styles are described in tailwind. If we want to create custom collection
 @import "tailwindcss";
 
 @theme {
-  --color-primary-background: #fff;
-  --color-secondary-background: #fff;
-  --color-accent-background: #fff;
-  --color-success-background: green;
-  --color-danger-background: #fff;
+  --color-primary-background: #1c1c1e; /* Dark background */
+  --color-secondary-background: #2c2c2e; /* Slightly lighter dark */
+  --color-accent-background: #3a3a3c; /* Accent background */
+  --color-success-background: #4cd964; /* Green for success */
+  --color-danger-background: #ff3b30; /* Red for danger */
 
-  --color-primary-text: #000000;
-  --color-secondary-text: #000000;
-  --color-accent-text: #ffffff;
-  --color-accent-active: oklch(70.5% 0.213 47.604);
-  --color-success-text: white;
-  --color-danger-text: white;
-  --color-accent-half: #e67d2480;
-  --color-accent-fourth: #e67d2440;
+  --color-primary-text: #ffffff; /* White text for primary */
+  --color-secondary-text: #e0e0e0; /* Light gray for secondary */
+  --color-accent-text: #ffffff; /* White for accent text */
+  --color-accent-active: oklch(70.5% 0.213 47.604); /* Active accent color */
+  --color-success-text: #ffffff; /* White for success text */
+  --color-danger-text: #ffffff; /* White for danger text */
+  --color-accent-half: #e67d2480; /* Semi-transparent accent */
+  --color-accent-fourth: #e67d2440; /* More transparent accent */
 
-  --color-tab-background: #ebebef;
-  --color-tab-background-hover: #d9d9dd;
-  --color-tab-background-active: #fafafb;
-  --color-tab-background-disabled: #bebec2;
-  --color-tab-text: black;
+  --color-tab-background: #2c2c2e; /* Tab background */
+  --color-tab-background-hover: #3a3a3c; /* Hover effect for tabs */
+  --color-tab-background-active: #4cd964; /* Active tab background */
+  --color-tab-background-disabled: #58585a; /* Disabled tab background */
+  --color-tab-text: #ffffff; /* White text for tabs */
 }
+
 
 @font-face {
   font-family: "Material Icons";

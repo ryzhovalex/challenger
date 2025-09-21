@@ -1,20 +1,26 @@
 <%inherit file="base.html"/>
 <%block name="out">
 
-<div class="flex flex-row gap-4 container">
-    <div>
-        <img src="${avatar}" class="rounded">
-    </div>
+<div class="w-full h-full flex flex-row justify-center items-center">
+    <div class="container mx-auto my-auto py-16 bg-secondary-background rounded-lg shadow-lg">
+        <div class="flex flex-row gap-4 justify-center items-center font-bold">
 
-    <div class="flex flex-col">
-        <div>${fullname}</div>
-        <div>${completed}/${total} achievements</div>
-    </div>
+            <div>
+                <img src="${avatar}" class="rounded">
+            </div>
 
-    <div class="">
-        ${"%.2f" % (completion * 100)}%
-    </div>
+            <div class="flex flex-col mr-64">
+                <div>${fullname}</div>
+                <div>${completed}/${total} achievements</div>
+                <div class="opacity-50 font-serif">Last Update: ${last_update_date}</div>
+            </div>
 
+            <div class="text-xl">
+                ${"%.2f" % (completion * 100)}% completion
+            </div>
+
+        </div>
+    </div>
 </div>
 
 </%block>

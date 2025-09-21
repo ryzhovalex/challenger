@@ -9,3 +9,6 @@ migrate *t:
 
 build_css:
     @ tailwind --minify -i main.css -o share/main.min.css
+
+build_css_watch:
+    @ tailwind --watch --minify -i main.css -o share/main.min.css
