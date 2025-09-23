@@ -1,1 +1,0 @@
-sync: don't repeat achievement requests that we for sure know will result in an error

@@ -1,0 +1,156 @@
+{
+    "response": {
+        "game_count": 438,
+        "games": [
+            {
+                "appid": 220,
+                "content_descriptorids": [
+                    2,
+                    5
+                ],
+                "has_community_visible_stats": true,
+                "img_icon_url": "fcfb366051782b8ebf2aa297f3b746395858cb62",
+                "name": "Half-Life 2",
+                "playtime_deck_forever": 0,
+                "playtime_disconnected": 0,
+                "playtime_forever": 0,
+                "playtime_linux_forever": 0,
+                "playtime_mac_forever": 0,
+                "playtime_windows_forever": 0,
+                "rtime_last_played": 0
+            },
+            {
+                "appid": 320,
+                "content_descriptorids": [
+                    2,
+                    5
+                ],
+                "img_icon_url": "795e85364189511f4990861b578084deef086cb1",
+                "name": "Half-Life 2: Deathmatch",
+                "playtime_deck_forever": 0,
+                "playtime_disconnected": 0,
+                "playtime_forever": 0,
+                "playtime_linux_forever": 0,
+                "playtime_mac_forever": 0,
+                "playtime_windows_forever": 0,
+                "rtime_last_played": 0
+            },
+            {
+                "appid": 360,
+                "content_descriptorids": [
+                    2,
+                    5
+                ],
+                "img_icon_url": "40b8a62efff5a9ab356e5c56f5c8b0532c8e1aa3",
+                "name": "Half-Life Deathmatch: Source",
+                "playtime_deck_forever": 0,
+                "playtime_disconnected": 0,
+                "playtime_forever": 0,
+                "playtime_linux_forever": 0,
+                "playtime_mac_forever": 0,
+                "playtime_windows_forever": 0,
+                "rtime_last_played": 0
+            },
+            {
+                "appid": 2100,
+                "content_descriptorids": [
+                    5
+                ],
+                "img_icon_url": "5a08cd17d14ccb07a14f316dfa222b18a20960fd",
+                "name": "Dark Messiah of Might & Magic Single Player",
+                "playtime_deck_forever": 0,
+                "playtime_disconnected": 0,
+                "playtime_forever": 29,
+                "playtime_linux_forever": 0,
+                "playtime_mac_forever": 0,
+                "playtime_windows_forever": 29,
+                "rtime_last_played": 1700164477
+            },
+            {
+                "appid": 2130,
+                "img_icon_url": "5a08cd17d14ccb07a14f316dfa222b18a20960fd",
+                "name": "Dark Messiah of Might & Magic Multi-Player",
+                "playtime_deck_forever": 0,
+                "playtime_disconnected": 0,
+                "playtime_forever": 0,
+                "playtime_linux_forever": 0,
+                "playtime_mac_forever": 0,
+                "playtime_windows_forever": 0,
+                "rtime_last_played": 0
+            },
+            {
+                "appid": 4000,
+                "has_community_visible_stats": true,
+                "img_icon_url": "4a6f25cfa2426445d0d9d6e233408de4d371ce8b",
+                "name": "Garry's Mod",
+                "playtime_deck_forever": 0,
+                "playtime_disconnected": 0,
+                "playtime_forever": 9366,
+                "playtime_linux_forever": 0,
+                "playtime_mac_forever": 0,
+                "playtime_windows_forever": 35,
+                "rtime_last_played": 1606675650
+            },
+            {
+                "appid": 2990,
+                "img_icon_url": "0e4abf32430e26b53ee0acd5d0396e1b2ec352f1",
+                "name": "FlatOut 2",
+                "playtime_deck_forever": 0,
+                "playtime_disconnected": 0,
+                "playtime_forever": 235,
+                "playtime_linux_forever": 0,
+                "playtime_mac_forever": 0,
+                "playtime_windows_forever": 235,
+                "rtime_last_played": 1722777478
+            },
+            {
+                "appid": 4570,
+                "content_descriptorids": [
+                    2,
+                    5
+                ],
+                "img_icon_url": "a4c7a8cce43d797c275aaf601d6855b90ba87769",
+                "name": "Warhammer 40,000: Dawn of War - Anniversary Edition ",
+                "playtime_deck_forever": 0,
+                "playtime_disconnected": 0,
+                "playtime_forever": 1003,
+                "playtime_linux_forever": 0,
+                "playtime_mac_forever": 0,
+                "playtime_windows_forever": 0,
+                "rtime_last_played": 1443031510
+            },
+            {
+                "appid": 4580,
+                "content_descriptorids": [
+                    2,
+                    5
+                ],
+                "img_icon_url": "584fcb6284ffd2fcf378fb3c199a9275a0a01b2d",
+                "name": "Warhammer 40,000: Dawn of War - Dark Crusade",
+                "playtime_deck_forever": 0,
+                "playtime_disconnected": 0,
+                "playtime_forever": 0,
+                "playtime_linux_forever": 0,
+                "playtime_mac_forever": 0,
+                "playtime_windows_forever": 0,
+                "rtime_last_played": 0
+            },
+            {
+                "appid": 9310,
+                "content_descriptorids": [
+                    2,
+                    5
+                ],
+                "img_icon_url": "60d48bf5f8a11fc4aeacb546a20cb40f537290bf",
+                "name": "Warhammer 40,000: Dawn of War - Winter Assault",
+                "playtime_deck_forever": 0,
+                "playtime_disconnected": 0,
+                "playtime_forever": 0,
+                "playtime_linux_forever": 0,
+                "playtime_mac_forever": 0,
+                "playtime_windows_forever": 0,
+                "rtime_last_played": 0
+            }
+        ]
+    }
+}

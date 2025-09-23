@@ -31,7 +31,22 @@ CREATE TABLE game (
     name TEXT NOT NULL,
     play_time INTEGER NOT NULL,
     last_play_time INTEGER NOT NULL,
-    icon TEXT NOT NULL
+    icon TEXT NOT NULL,
+    perfect BOOLEAN DEFAULT false
+);
+
+CREATE TABLE sync (
+    id INTEGER PRIMARY KEY,
+    last_timestamp INTEGER DEFAULT 0
+);
+INSERT INTO sync (last_timestamp) VALUES (0);
+
+CREATE TABLE completion (
+    id INTEGER PRIMARY KEY,  -- id represents timestamp
+    completion FLOAT NOT NULL,
+    completed INTEGER NOT NULL,
+    perfect INTEGER NOT NULL,
+    total INTEGER NOT NULL
 );
 
 -- migrate:down

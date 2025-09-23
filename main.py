@@ -1,6 +1,9 @@
 project_name = "challenger"
 
+import re
 import httpx
+import json
+import build
 import datetime as dt
 import sys
 import aiofiles
@@ -182,10 +185,7 @@ async def sync_steam(con: database.Connection):
     sync_in_progress = True
 
     try:
-        completion = 0.0
         games = []
-        completed_achievements = 0
-        total_achievements = 0
 
         key = "34525A80B57ECF3B15AEBBC170409F20"
         steamid = "76561198016051984"
@@ -220,6 +220,7 @@ async def sync_steam(con: database.Connection):
         r = await request_steam(f"IPlayerService/GetOwnedGames/v1/?key={key}&steamid={steamid}&include_appinfo=true&include_played_free_games=true", {})
         games = r["response"]["games"]
 
+        raw_achievements = []
         for raw_game in games:
 
             game = Game(
@@ -247,6 +248,7 @@ async def sync_steam(con: database.Connection):
 
             # stat = await request_steam(f"ISteamUserStats/GetUserStatsForGame/v0002/?key={key}&steamid={steamid}&appid={game['appid']}", {})
             raw_stat = await request_steam(f"ISteamUserStats/GetPlayerAchievements/v0001/?key={key}&steamid={steamid}&appid={game.steam_id}&l=en", {})
+            raw_achievements.append(raw_stat)
             stat = []
             if raw_stat != {}:
                 stat = raw_stat["playerstats"].get("achievements", [])
@@ -274,27 +276,49 @@ async def sync_steam(con: database.Connection):
                         (achievement.steam_id, achievement.name, achievement.description, achievement.icon, achievement.completed, achievement.unlock_timestamp, game.steam_id)
                     )
 
+        completion = 0.0
+        completed_achievements = 0
+        total_achievements = 0
+        perfect = 0
+        perfect_map = {}
+        perfect_game_ids = []
+
+        async with con.execute("SELECT game_id, completed FROM achievement ORDER BY id DESC") as cur:
+            rows = await cur.fetchall()
+            for row in rows:
                 total_achievements += 1
-                if achievement.completed:
+                if row.completed:
                     completed_achievements += 1
 
-        # global_stats = []
-        # for game in games:
-        #     stat = await request_steam(f"ISteamUserStats/GetGlobalAchievementPercentagesForApp/v0002/?key={key}&steamid={steamid}&gameid={game['appid']}", {})
-        #     global_stats.append(stat)
+                if row.game_id not in perfect_map:
+                    perfect_map[row.game_id] = 0
 
-        if total_achievements > 0:
-            completion = completed_achievements / total_achievements
+                if row.completed:
+                    perfect_map[row.game_id] -= 1
+                else:
+                    perfect_map[row.game_id] += 1
+
+        for k, v in perfect_map.items():
+            assert v >= 0
+            if v == 0:
+                perfect += 1
+                perfect_game_ids.append(k)
+
+        await con.execute("UPDATE game SET perfect = true WHERE game_id IN (?)", (perfect_game_ids,))
+
+        completion = completed_achievements / total_achievements
 
         # completions are accumulated to form a story
         skip_story = False
         async with con.execute("SELECT * FROM completion ORDER BY id DESC LIMIT 1") as cur:
             row = await cur.fetchone()
-            if row is not None and row.completion == completion and row.completed == completed_achievements and row.total == total_achievements:
-                log.info("skip completion story add: nothing changed")
+            if row is not None and row.completion == completion and row.completed == completed_achievements and row.total == total_achievements and row.perfect == perfect:
+                log.info("sync: skip completion story add: nothing changed")
                 skip_story = True
         if not skip_story:
-            await con.execute("INSERT INTO completion (id, completion, completed, total) VALUES (?, ?, ?, ?)", (xtime.timestamp(), completion, completed_achievements, total_achievements))
+            await con.execute("INSERT INTO completion (id, completion, completed, total, perfect) VALUES (?, ?, ?, ?, ?)", (xtime.timestamp(), completion, completed_achievements, total_achievements, perfect))
+
+        log.info(f"sync: finished: loaded {total_achievements}, completed {completed_achievements}, completion {(completion*100):.1f}%, perfect {perfect}")
     finally:
         sync_in_progress = False
 
@@ -332,8 +356,34 @@ async def endpoint_share(d: bytes) -> bytes:
 
         return content
 
+cached_achievements = {}
 
 async def request_steam(route: str, default: Any) -> Any:
+    if build.debug:
+        cache_name = None
+        if route.startswith("ISteamUser/GetPlayerSummaries/v0002"):
+            cache_name = "user"
+        elif route.startswith("IPlayerService/GetOwnedGames/v1"):
+            cache_name = "games"
+        elif route.startswith("ISteamUserStats/GetPlayerAchievements/v0001"):
+            cache_name = "achievements"
+
+        if cache_name:
+            requested_game_steam_id = ""
+            if cache_name == "achievements":
+                match = re.search(r"&appid=(\d+)", route)
+                requested_game_steam_id = match.group(1)
+            if cache_name == "achievements" and cached_achievements:
+                return cached_achievements.get(requested_game_steam_id, default)
+            async with aiofiles.open(location.source(f"data/{cache_name}.json")) as f:
+                content = json.loads(await f.read())
+                if cache_name == "achievements":
+                    assert isinstance(content, list)
+                    cached_achievments = content
+                    return cached_achievements.get(requested_game_steam_id, default)
+                return content
+
+
     global current_parallel_requests
     global max_parallel_requests
 
@@ -346,7 +396,6 @@ async def request_steam(route: str, default: Any) -> Any:
             if r.status_code >= 400:
                 log.error(f"request to '{route}' resulted in a response #{r.status_code} with an error: {r.text}")
                 return default
-            # log.info(f"got response from '{route}'")
             return r.json()
         except Exception as e:
             log.error(f"request to '{route}' resulted in error: {e}")

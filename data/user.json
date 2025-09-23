@@ -1,0 +1,22 @@
+{
+    "response": {
+        "players": [
+            {
+                "avatar": "https://avatars.steamstatic.com/13aa4f9ffb6784abe35a6171c742de7f8aad25a9.jpg",
+                "avatarfull": "https://avatars.steamstatic.com/13aa4f9ffb6784abe35a6171c742de7f8aad25a9_full.jpg",
+                "avatarhash": "13aa4f9ffb6784abe35a6171c742de7f8aad25a9",
+                "avatarmedium": "https://avatars.steamstatic.com/13aa4f9ffb6784abe35a6171c742de7f8aad25a9_medium.jpg",
+                "communityvisibilitystate": 3,
+                "lastlogoff": 1758529191,
+                "personaname": "D4rkof",
+                "personastate": 0,
+                "personastateflags": 0,
+                "primaryclanid": "103582791429521408",
+                "profilestate": 1,
+                "profileurl": "https://steamcommunity.com/id/Da-rk-of/",
+                "steamid": "76561198016051984",
+                "timecreated": 1258207674
+            }
+        ]
+    }
+}
