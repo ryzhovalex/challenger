@@ -3,11 +3,11 @@
         "playerstats": {
             "achievements": [
                 {
-                    "achieved": 0,
+                    "achieved": 1,
                     "apiname": "HL2_HIT_CANCOP_WITHCAN",
                     "description": "",
                     "name": "Defiant",
-                    "unlocktime": 0
+                    "unlocktime": 5000
                 },
                 {
                     "achieved": 0,
@@ -17,11 +17,11 @@
                     "unlocktime": 0
                 },
                 {
-                    "achieved": 0,
+                    "achieved": 1,
                     "apiname": "HL2_ESCAPE_APARTMENTRAID",
                     "description": "Escape the apartment block raid.",
                     "name": "Malcontent",
-                    "unlocktime": 0
+                    "unlocktime": 5000
                 },
                 {
                     "achieved": 0,

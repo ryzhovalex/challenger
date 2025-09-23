@@ -295,8 +295,7 @@ async def sync_steam(con: database.Connection):
 
                 if row.completed:
                     perfect_map[row.game_id] -= 1
-                else:
-                    perfect_map[row.game_id] += 1
+                perfect_map[row.game_id] += 1
 
         for k, v in perfect_map.items():
             assert v >= 0
@@ -304,9 +303,11 @@ async def sync_steam(con: database.Connection):
                 perfect += 1
                 perfect_game_ids.append(k)
 
-        await con.execute("UPDATE game SET perfect = true WHERE game_id IN (?)", (perfect_game_ids,))
+        placeholders = ", ".join("?" for _ in perfect_game_ids)
+        await con.execute(f"UPDATE game SET perfect = true WHERE id IN ({placeholders})", perfect_game_ids)
 
-        completion = completed_achievements / total_achievements
+        if total_achievements > 0:
+            completion = completed_achievements / total_achievements
 
         # completions are accumulated to form a story
         skip_story = False
@@ -359,6 +360,8 @@ async def endpoint_share(d: bytes) -> bytes:
 cached_achievements = {}
 
 async def request_steam(route: str, default: Any) -> Any:
+    global cached_achievements
+
     if build.debug:
         cache_name = None
         if route.startswith("ISteamUser/GetPlayerSummaries/v0002"):
@@ -374,12 +377,12 @@ async def request_steam(route: str, default: Any) -> Any:
                 match = re.search(r"&appid=(\d+)", route)
                 requested_game_steam_id = match.group(1)
             if cache_name == "achievements" and cached_achievements:
-                return cached_achievements.get(requested_game_steam_id, default)
+                r = cached_achievements.get(requested_game_steam_id, default)
+                return r
             async with aiofiles.open(location.source(f"data/{cache_name}.json")) as f:
                 content = json.loads(await f.read())
                 if cache_name == "achievements":
-                    assert isinstance(content, list)
-                    cached_achievments = content
+                    cached_achievements = content
                     return cached_achievements.get(requested_game_steam_id, default)
                 return content
 
