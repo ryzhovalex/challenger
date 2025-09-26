@@ -27,5 +27,5 @@ def init(project_name: str):
     if os.name == "nt":  # Windows.
         _user = Path(homedir, "AppData", "Roaming", project_name)
     else:  # Linux or macOS.
-        _user = Path(homedir, "."+project_name)
+        _user = Path(homedir, ".data", project_name)
     _user.mkdir(parents=True, exist_ok=True)
