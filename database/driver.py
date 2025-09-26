@@ -25,6 +25,12 @@ _T = TypeVar("_T")
 
 
 class Record(sqlite3.Row):
+    def to_dict(self) -> dict:
+        r = {}
+        for k in self.keys():
+            r[k] = self[k]
+        return r
+
     def __getattr__(self, name) -> Any:
         keys = list(self.keys())
         if name in keys:

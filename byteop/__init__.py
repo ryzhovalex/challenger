@@ -75,3 +75,13 @@ def bytes_to_float(input: bytes) -> float:
 
 def int_to_bytes(input: int, size: int) -> bytes:
     return input.to_bytes(size, byteorder="little")
+
+def adaptively_to_bytes(input: Any):
+    if isinstance(input, str):
+        return string_to_bytes(input)
+    elif isinstance(input, int):
+        return int_to_bytes(input, 8)
+    elif isinstance(input, bytes):
+        return input
+    else:
+        raise TypeError("Unsupported data type")

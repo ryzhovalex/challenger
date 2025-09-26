@@ -1,5 +1,6 @@
 project_name = "challenger"
 
+import math
 import re
 import httpx
 import json
@@ -77,7 +78,7 @@ sync_in_progress = False
 async def init():
     local_date = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-    log.info(f"{local_date}; {project_name} {build.version} ({'debug' if build.debug else 'release'} build {build.time}, {platform.system()} {platform.version()}, Python {python_version})")
+    log.info(f"{local_date}; {project_name} {build.version} ({'debug' if build.debug else 'release'} build {build.timestamp}, {platform.system()} {platform.version()}, Python {python_version})")
     await database.init()
     web.init(get_web_user)
 
@@ -114,6 +115,7 @@ async def endpoint_home(d: bytes) -> bytes:
             args["completed"] = row.completed
             args["total"] = row.total
             args["completion"] = row.completion
+            args["formatted_completion"] = "{:.1f}".format(math.floor((row.completion * 100) * 10) / 10)
         async with con.execute("SELECT last_timestamp FROM sync LIMIT 1") as cur:
             row = await cur.fetchone()
             if row == None:
@@ -185,6 +187,9 @@ async def sync_steam(con: database.Connection):
     sync_in_progress = True
 
     try:
+        completion_id = xtime.timestamp()
+        await con.execute("INSERT INTO completion (id, completion, completed, perfect, total) VALUES (?, 0, 0, 0, 0)", completion_id)
+
         games = []
 
         key = "34525A80B57ECF3B15AEBBC170409F20"
@@ -233,18 +238,32 @@ async def sync_steam(con: database.Connection):
                 icon = raw_game["img_icon_url"],
             )
 
-            async with con.execute("SELECT id FROM game WHERE steam_id = ?", game.steam_id) as cur:
-                exists = await cur.fetchone() is not None
-            if exists:
-                await con.execute(
-                    "UPDATE game SET name = ?, play_time = ?, last_play_time = ?, icon = ? WHERE steam_id = ?",
-                    game.name, game.play_time, game.last_play_time, game.icon, game.steam_id,
-                )
+            async with con.execute("SELECT * FROM game WHERE steam_id = ?", game.steam_id) as cur:
+                row = await cur.fetchone()
+            if row:
+                for col, new_value in [
+                    ("name", game.name),
+                    ("play_time", game.play_time),
+                    ("last_play_time", game.last_play_time),
+                    ("icon", game.icon),
+                ]:
+                    if row[col] == new_value:
+                        continue
+                    await con.execute(
+                        f"UPDATE game SET {col} = ? WHERE steam_id = ?",
+                        new_value, game.steam_id,
+                    )
+                    await con.execute(f"INSERT INTO completion_update_modification (target_table, target_column, old_value, new_value, completion_id) VALUES ('game', ?, ?, ?, ?)", col, byteop.adaptively_to_bytes(row[col]), byteop.adaptively_to_bytes(new_value), completion_id)
             else:
                 await con.execute(
                     "INSERT INTO game (steam_id, name, play_time, last_play_time, icon) VALUES (?, ?, ?, ?, ?)",
                     game.steam_id, game.name, game.play_time, game.last_play_time, game.icon,
                 )
+                async with con.execute("SELECT * FROM game WHERE steam_id = ?", game.steam_id) as cur:
+                    row = await cur.fetchone()
+                    assert row
+                    payload = row.to_dict()
+                await con.execute(f"INSERT INTO completion_insert_modification (target_table, payload, completion_id) VALUES ('game', ?, ?)", json.dumps(payload), completion_id)
 
             # stat = await request_steam(f"ISteamUserStats/GetUserStatsForGame/v0002/?key={key}&steamid={steamid}&appid={game['appid']}", {})
             raw_stat = await request_steam(f"ISteamUserStats/GetPlayerAchievements/v0001/?key={key}&steamid={steamid}&appid={game.steam_id}&l=en", {})
@@ -263,18 +282,30 @@ async def sync_steam(con: database.Connection):
                     unlock_timestamp = s["unlocktime"],
                 )
 
-                async with con.execute("SELECT achievement.id FROM achievement JOIN game ON game.id = achievement.game_id WHERE achievement.steam_id = ? AND game.steam_id = ?", achievement.steam_id, game.steam_id) as cur:
-                    exists = (await cur.fetchone()) is not None
-                if exists:
-                    await con.execute(
-                        "UPDATE achievement SET name = ?, description = ?, icon = ?, completed = ?, unlock_timestamp = ? WHERE steam_id = ? AND game_id = (SELECT id FROM game WHERE steam_id = ?)",
-                        achievement.name, achievement.description, achievement.icon, achievement.completed, achievement.unlock_timestamp, achievement.steam_id, game.steam_id,
-                    )
+                async with con.execute("SELECT * FROM achievement JOIN game ON game.id = achievement.game_id WHERE achievement.steam_id = ? AND game.steam_id = ?", achievement.steam_id, game.steam_id) as cur:
+                    row = await cur.fetchone()
+                if row:
+                    for col, new_value in [
+                        ("name", achievement.name),
+                        ("description", achievement.description),
+                        ("icon", achievement.icon),
+                        ("completed", achievement.completed),
+                        ("unlock_timestamp", achievement.unlock_timestamp)
+                    ]:
+                        if row[col] == new_value:
+                            continue
+                        await con.execute(f"UPDATE achievement SET {col} = ? WHERE steam_id = ? AND game_id = (SELECT id FROM game WHERE steam_id = ?)", new_value, achievement.steam_id, game.steam_id)
+                        await con.execute(f"INSERT INTO completion_update_modification (target_table, target_column, old_value, new_value, completion_id) VALUES ('achievement', ?, ?, ?, ?)", col, byteop.adaptively_to_bytes(row[col]), byteop.adaptively_to_bytes(new_value), completion_id)
                 else:
                     await con.execute(
                         "INSERT INTO achievement (steam_id, name, description, icon, completed, unlock_timestamp, game_id) VALUES (?, ?, ?, ?, ?, ?, (SELECT id FROM game WHERE steam_id = ?))",
                         achievement.steam_id, achievement.name, achievement.description, achievement.icon, achievement.completed, achievement.unlock_timestamp, game.steam_id,
                     )
+                    async with con.execute("SELECT * FROM achievement WHERE steam_id = ? AND game_id = (SELECT id FROM game WHERE steam_id = ?)", achievement.steam_id, game.steam_id) as cur:
+                        row = await cur.fetchone()
+                        assert row
+                        payload = row.to_dict()
+                    await con.execute(f"INSERT INTO completion_insert_modification (target_table, payload, completion_id) VALUES ('achievement', ?, ?)", json.dumps(payload), completion_id)
 
         completion = 0.0
         completed_achievements = 0
@@ -309,15 +340,7 @@ async def sync_steam(con: database.Connection):
         if total_achievements > 0:
             completion = completed_achievements / total_achievements
 
-        # completions are accumulated to form a story
-        skip_story = False
-        async with con.execute("SELECT * FROM completion ORDER BY id DESC LIMIT 1") as cur:
-            row = await cur.fetchone()
-            if row is not None and row.completion == completion and row.completed == completed_achievements and row.total == total_achievements and row.perfect == perfect:
-                log.info("sync: skip completion story add: nothing changed")
-                skip_story = True
-        if not skip_story:
-            await con.execute("INSERT INTO completion (id, completion, completed, total, perfect) VALUES (?, ?, ?, ?, ?)", xtime.timestamp(), completion, completed_achievements, total_achievements, perfect)
+        await con.execute("UPDATE completion SET completion = ?, completed = ?, total = ?, perfect = ? WHERE id = ?", completion, completed_achievements, total_achievements, perfect, completion_id)
 
         log.info(f"sync: finished: loaded {total_achievements}, completed {completed_achievements}, completion {(completion*100):.1f}%, perfect {perfect}")
     finally:

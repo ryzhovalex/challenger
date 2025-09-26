@@ -1,6 +1,9 @@
 name = "challenger"
 
 build = fn () {
+    buildInfo("build.py")
+    buildCode("codes.py")
+
     buildInclude("base.html")
     buildInclude("home.html")
     buildInclude("share")
