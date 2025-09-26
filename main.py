@@ -88,14 +88,14 @@ async def deinit():
 
 
 async def get_web_user(id: int) -> web.User:
-    return User(
+    return web.User(
         auth="whocares",
         username="whocares",
         fullname="whocares",
         permissions=[],
     )
 
-@web.endpoint_module("home")
+@web.endpoint_module("")
 async def endpoint_home(d: bytes) -> bytes:
     lookup = mako.lookup.TemplateLookup(directories=["./"])
     template = mako.template.Template(filename="home.html", module_directory=Path(tempfile.gettempdir(), "mako_modules"), lookup=lookup)
@@ -121,7 +121,7 @@ async def endpoint_home(d: bytes) -> bytes:
             args["last_update_date"] = dt.datetime.fromtimestamp(row.last_timestamp, dt.UTC)
 
     web.as_html()
-    return byteop.string_to_bytes(template.render(**args))
+    return byteop.string_to_bytes(str(template.render(**args)))
 
 def crucial_task(task):
     try:
@@ -134,13 +134,13 @@ def crucial_task(task):
             message += f" Result: {task.result()}"
         log.error(message)
     finally:
-        sys.exit(1) 
+        sys.exit(1)
 
 async def run():
     steam_syncer_task = asyncio.create_task(steam_syncer())
     steam_syncer_task.add_done_callback(crucial_task)
     await web.run()
-    return 
+    return
 
 async def steam_syncer():
     last_timestamp = 0
@@ -166,7 +166,7 @@ async def steam_syncer():
             await sync_steam(con)
         last_timestamp = xtime.timestamp()
         async with database.transaction() as con:
-            await con.execute("UPDATE sync SET last_timestamp = ?", (last_timestamp,))
+            await con.execute("UPDATE sync SET last_timestamp = ?", last_timestamp)
         next_date = dt.datetime.fromtimestamp(last_timestamp + cooldown, dt.UTC)
         log.info(f"planned steam sync has been finished, next one will be at {next_date}")
 
@@ -209,12 +209,12 @@ async def sync_steam(con: database.Connection):
         if exists:
             await con.execute(
                 "UPDATE xuser SET profile_url = ?, avatar32 = ?, avatar64 = ?, avatar184 = ?, username = ?, fullname = ?, current_game_id = ?, current_game_name = ?, registered_timestamp = ? WHERE steam_id = ?",
-                (user.profile_url, user.avatar32, user.avatar64, user.avatar184, user.username, user.fullname, user.current_game_id, user.current_game_name, user.registered_timestamp, user.steam_id)
+                user.profile_url, user.avatar32, user.avatar64, user.avatar184, user.username, user.fullname, user.current_game_id, user.current_game_name, user.registered_timestamp, user.steam_id,
             )
         else:
             await con.execute(
                 "INSERT INTO xuser (steam_id, profile_url, avatar32, avatar64, avatar184, username, fullname, current_game_id, current_game_name, registered_timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (user.steam_id, user.profile_url, user.avatar32, user.avatar64, user.avatar184, user.username, user.fullname, user.current_game_id, user.current_game_name, user.registered_timestamp)
+                user.steam_id, user.profile_url, user.avatar32, user.avatar64, user.avatar184, user.username, user.fullname, user.current_game_id, user.current_game_name, user.registered_timestamp,
             )
 
         r = await request_steam(f"IPlayerService/GetOwnedGames/v1/?key={key}&steamid={steamid}&include_appinfo=true&include_played_free_games=true", {})
@@ -233,17 +233,17 @@ async def sync_steam(con: database.Connection):
                 icon = raw_game["img_icon_url"],
             )
 
-            async with con.execute("SELECT id FROM game WHERE steam_id = ?", (game.steam_id,)) as cur:
+            async with con.execute("SELECT id FROM game WHERE steam_id = ?", game.steam_id) as cur:
                 exists = await cur.fetchone() is not None
             if exists:
                 await con.execute(
                     "UPDATE game SET name = ?, play_time = ?, last_play_time = ?, icon = ? WHERE steam_id = ?",
-                    (game.name, game.play_time, game.last_play_time, game.icon, game.steam_id),
+                    game.name, game.play_time, game.last_play_time, game.icon, game.steam_id,
                 )
             else:
                 await con.execute(
                     "INSERT INTO game (steam_id, name, play_time, last_play_time, icon) VALUES (?, ?, ?, ?, ?)",
-                    (game.steam_id, game.name, game.play_time, game.last_play_time, game.icon),
+                    game.steam_id, game.name, game.play_time, game.last_play_time, game.icon,
                 )
 
             # stat = await request_steam(f"ISteamUserStats/GetUserStatsForGame/v0002/?key={key}&steamid={steamid}&appid={game['appid']}", {})
@@ -263,17 +263,17 @@ async def sync_steam(con: database.Connection):
                     unlock_timestamp = s["unlocktime"],
                 )
 
-                async with con.execute("SELECT achievement.id FROM achievement JOIN game ON game.id = achievement.game_id WHERE achievement.steam_id = ? AND game.steam_id = ?", (achievement.steam_id, game.steam_id)) as cur:
-                    exists = await cur.fetchone() is not None
+                async with con.execute("SELECT achievement.id FROM achievement JOIN game ON game.id = achievement.game_id WHERE achievement.steam_id = ? AND game.steam_id = ?", achievement.steam_id, game.steam_id) as cur:
+                    exists = (await cur.fetchone()) is not None
                 if exists:
                     await con.execute(
-                        "UPDATE achievement SET name = ?, description = ?, icon = ?, completed = ?, unlock_timestamp = ?, game_id = (SELECT id FROM game WHERE steam_id = ?) WHERE steam_id = ?",
-                        (achievement.name, achievement.description, achievement.icon, achievement.completed, achievement.unlock_timestamp, game.steam_id, achievement.steam_id)
+                        "UPDATE achievement SET name = ?, description = ?, icon = ?, completed = ?, unlock_timestamp = ? WHERE steam_id = ? AND game_id = (SELECT id FROM game WHERE steam_id = ?)",
+                        achievement.name, achievement.description, achievement.icon, achievement.completed, achievement.unlock_timestamp, achievement.steam_id, game.steam_id,
                     )
                 else:
                     await con.execute(
                         "INSERT INTO achievement (steam_id, name, description, icon, completed, unlock_timestamp, game_id) VALUES (?, ?, ?, ?, ?, ?, (SELECT id FROM game WHERE steam_id = ?))",
-                        (achievement.steam_id, achievement.name, achievement.description, achievement.icon, achievement.completed, achievement.unlock_timestamp, game.steam_id)
+                        achievement.steam_id, achievement.name, achievement.description, achievement.icon, achievement.completed, achievement.unlock_timestamp, game.steam_id,
                     )
 
         completion = 0.0
@@ -304,7 +304,7 @@ async def sync_steam(con: database.Connection):
                 perfect_game_ids.append(k)
 
         placeholders = ", ".join("?" for _ in perfect_game_ids)
-        await con.execute(f"UPDATE game SET perfect = true WHERE id IN ({placeholders})", perfect_game_ids)
+        await con.execute(f"UPDATE game SET perfect = true WHERE id IN ({placeholders})", *perfect_game_ids)
 
         if total_achievements > 0:
             completion = completed_achievements / total_achievements
@@ -317,7 +317,7 @@ async def sync_steam(con: database.Connection):
                 log.info("sync: skip completion story add: nothing changed")
                 skip_story = True
         if not skip_story:
-            await con.execute("INSERT INTO completion (id, completion, completed, total, perfect) VALUES (?, ?, ?, ?, ?)", (xtime.timestamp(), completion, completed_achievements, total_achievements, perfect))
+            await con.execute("INSERT INTO completion (id, completion, completed, total, perfect) VALUES (?, ?, ?, ?, ?)", xtime.timestamp(), completion, completed_achievements, total_achievements, perfect)
 
         log.info(f"sync: finished: loaded {total_achievements}, completed {completed_achievements}, completion {(completion*100):.1f}%, perfect {perfect}")
     finally:
@@ -344,6 +344,8 @@ content_types = {
 @web.endpoint_module_variable("share", response_coded=False)
 async def endpoint_share(d: bytes) -> bytes:
     filename = web.request_variable()
+    if filename is None:
+        raise Exception("missing filename")
     if "/" in filename:
         raise Exception("cannot change directories")
     path = location.source(Path("share", filename))
@@ -375,6 +377,7 @@ async def request_steam(route: str, default: Any) -> Any:
             requested_game_steam_id = ""
             if cache_name == "achievements":
                 match = re.search(r"&appid=(\d+)", route)
+                assert match
                 requested_game_steam_id = match.group(1)
             if cache_name == "achievements" and cached_achievements:
                 r = cached_achievements.get(requested_game_steam_id, default)

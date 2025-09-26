@@ -48,7 +48,7 @@ def error(message: str, trace: Exception | None = None):
 
     # Trace error to special storage.
     if trace:
-        loc_dir = location.user(Path("logs", "traces"))
+        loc_dir = location.user(Path("log", "trace"))
         loc_dir.mkdir(parents=True, exist_ok=True)
         trace_id = xrandom.makeid()
         loc_name = trace_id

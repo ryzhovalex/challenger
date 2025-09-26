@@ -12,3 +12,6 @@ build_css:
 
 build_css_watch:
     @ tailwind --watch --minify -i main.css -o share/main.min.css
+
+#scp ~\AppData\Roaming\challenger\data.db alex@81.163.30.25:/home/alex/.challenger/data.db
+#scp alex@81.163.30.25:/home/alex/.challenger/data.db ~\AppData\Roaming\challenger\data.db

@@ -1,35 +1,16 @@
-import aiosqlite as driver
 from typing import Any
 from pathlib import Path
 import location
-
-class Connection:
-    def __await__(self):
-        self.con = yield from driver.connect(location.user("data.db")).__await__()
-        self.con.row_factory = Record
-        return self.con
-
-    async def close(self):
-        await self.con.close()
-
-    async def __aenter__(self):
-        return await self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self.close()
-
-
-class Record(driver.Row):
-    def __getattr__(self, name) -> Any:
-        keys = list(self.keys())
-        if name in keys:
-            return self[name]
-        raise AttributeError(f"Record '{self.__class__.__name__}' has no key '{name}', available keys: {keys}")
+from database import driver
+from database.driver import Record, Connection, Cursor
 
 
 class transaction:
+    """
+    Everything goes through transactions.
+    """
     async def __aenter__(self):
-        self.con = await connect()
+        self.con = await driver.connect(location.user("data.db"))
         await self.con.execute("BEGIN")
         return self.con
 
@@ -40,9 +21,6 @@ class transaction:
             await self.con.rollback()
         await self.con.close()
 
-
-def connect() -> Connection:
-    return Connection()
 
 async def init():
     pass

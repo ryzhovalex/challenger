@@ -45,7 +45,7 @@ import jwt
 from pydantic import BaseModel, ValidationError
 
 import byteop
-from code import role_not_found, struct_validation_error, unknown_update_action
+from codes import role_not_found, struct_validation_error, unknown_update_action
 import config
 import xrandom
 import xtime
@@ -88,16 +88,18 @@ class Endpoint(BaseModel):
     # whether code should be included in the response
     response_coded: bool = True
 
-    def get_permission() -> str:
-        match type:
+    def get_permission(self) -> str:
+        match self.type:
             case "module":
-                return module
+                return self.module
             case "module_variable":
-                return f"{module}.@"
+                return f"{self.module}.@"
             case "function":
-                return f"{module}.{function}"
+                return f"{self.module}.{self.function}"
             case "function_variable":
-                return f"{module}.{function}.@"
+                return f"{self.module}.{self.function}.@"
+            case _:
+                raise Exception(f"unrecognized type '{self.type}'")
 
     def display(self) -> str:
         if self.type == "module":
@@ -823,33 +825,33 @@ def build_permission_description(permission: str) -> str:
 #
 #     return byteop.structs_to_bytes(pretty_permissions)
 
-@endpoint_function("server", "update-role-permissions", auth_mode=mode_permission)
-async def update_role_permissions(data: bytes) -> bytes:
-    async with transaction() as con:
-        model = byteop.bytes_to_struct(UpdateRolePermissions, data)
-        if not model:
-            response_code(struct_validation_error)
-            return bytes()
+# @endpoint_function("server", "update-role-permissions", auth_mode=mode_permission)
+# async def update_role_permissions(data: bytes) -> bytes:
+#     async with transaction() as con:
+#         model = byteop.bytes_to_struct(UpdateRolePermissions, data)
+#         if not model:
+#             response_code(struct_validation_error)
+#             return bytes()
 
-        role = await con.fetch_first("SELECT * FROM role WHERE id = $1", model.id)
-        if role is None:
-            response_code(role_not_found)
-            return bytes()
+#         role = await con.fetch_first("SELECT * FROM role WHERE id = $1", model.id)
+#         if role is None:
+#             response_code(role_not_found)
+#             return bytes()
 
-        permissions = set(role.permissions.split(","))
+#         permissions = set(role.permissions.split(","))
 
-        if model.action == "push":
-            permissions.update(model.permissions)
-        elif model.action == "pop":
-            permissions.difference_update(model.permissions)
-        else:
-            response_code(unknown_update_action)
-            return bytes()
+#         if model.action == "push":
+#             permissions.update(model.permissions)
+#         elif model.action == "pop":
+#             permissions.difference_update(model.permissions)
+#         else:
+#             response_code(unknown_update_action)
+#             return bytes()
 
-        new_permissions = ",".join(permissions)
-        await con.execute("UPDATE role SET permissions = $1 WHERE id = $2", new_permissions, model.id)
+#         new_permissions = ",".join(permissions)
+#         await con.execute("UPDATE role SET permissions = $1 WHERE id = $2", new_permissions, model.id)
 
-        return bytes()
+#         return bytes()
 
 bus_connections = {}
 
@@ -874,14 +876,14 @@ async def bus(data: bytes) -> bytes:
     Connected via `/web/bus/@{auth_token}`.
     """
     if data == connect_token:
-        token = request_route_variable()
+        token = request_variable()
         if token is None or token == "":
             raise Exception("token is required to connect to the bus")
         ws = request_websocket()
         bus_connections[token] = ws
 
     if data == disconnect_token:
-        token = request_route_variable()
+        token = request_variable()
         if token is None or token == "":
             return bytes()
         if token in bus_connections:

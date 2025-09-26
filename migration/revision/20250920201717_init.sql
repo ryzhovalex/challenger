@@ -22,7 +22,8 @@ CREATE TABLE achievement (
     completed BOOLEAN NOT NULL,
     unlock_timestamp INTEGER NOT NULL,
     game_id INTEGER,
-    FOREIGN KEY (game_id) REFERENCES game(id) ON DELETE CASCADE
+    FOREIGN KEY (game_id) REFERENCES game(id) ON DELETE CASCADE,
+    UNIQUE (steam_id, game_id)
 );
 
 CREATE TABLE game (
