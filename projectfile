@@ -1,0 +1,8 @@
+name = "challenger"
+
+build = fn () {
+    buildInclude("base.html")
+    buildInclude("home.html")
+    buildInclude("share")
+    buildIncludePython()
+}

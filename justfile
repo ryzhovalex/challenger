@@ -13,5 +13,9 @@ build_css:
 build_css_watch:
     @ tailwind --watch --minify -i main.css -o share/main.min.css
 
-#scp ~\AppData\Roaming\challenger\data.db alex@81.163.30.25:/home/alex/.challenger/data.db
-#scp alex@81.163.30.25:/home/alex/.challenger/data.db ~\AppData\Roaming\challenger\data.db
+# bash -c "sudo systemctl stop challenger && rm -rf /home/alex/.app/challenger"
+deploy:
+    @ scp -r .build/challenger alex@81.163.30.25:/home/alex/.app/challenger
+
+#scp ~\AppData\Roaming\challenger\data.db alex@81.163.30.25:/home/alex/.data/challenger/data.db
+#scp alex@81.163.30.25:/home/alex/.data/challenger/data.db ~\AppData\Roaming\challenger\data.db
